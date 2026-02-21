@@ -1,0 +1,2 @@
+# Optional Python utilities for Windows/iPhone HTTPS tunnel testing (not required for app runtime)
+pyngrok==7.2.8
