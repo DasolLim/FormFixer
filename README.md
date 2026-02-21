@@ -5,7 +5,6 @@ Simple, clean project foundation for a fitness form-fixer web app.
 ## Stack
 - Next.js + React + TypeScript
 - Supabase (client utility setup)
-- Stripe (pricing UI placeholders only)
 - MediaPipe-ready camera page shell (no pose detection yet)
 
 ## 1) Install
@@ -20,11 +19,6 @@ Create `.env` in project root with:
 # Supabase
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
-
-# Stripe (placeholders for v1 billing work)
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxx
-STRIPE_SECRET_KEY=sk_test_xxx
-STRIPE_WEBHOOK_SECRET=whsec_xxx
 ```
 
 ## 3) Run
@@ -37,7 +31,7 @@ Open: `http://localhost:3000`
 - `/` Home
 - `/camera` Camera placeholder
 - `/dashboard` Dashboard placeholder
-- `/pricing` Free vs Pro placeholder
+- `/pricing` Free vs Pro placeholder UI (no payment flow)
 - `/login` Login/Signup placeholder
 
 ## Supabase utility
@@ -69,5 +63,5 @@ Open the generated `https://...` URL on iPhone Safari.
 ## Deferred to v1
 - Real MediaPipe pose detection + feedback logic
 - Supabase Auth + DB schema
-- Stripe checkout/webhooks
+- Payment integration (Stripe or alternative)
 - Food photo nutrition analysis
