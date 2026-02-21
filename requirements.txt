@@ -1,0 +1,2 @@
+# Optional Python utilities for local tunnel workflows (not required for app runtime)
+pyngrok==7.2.8
