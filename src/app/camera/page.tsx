@@ -14,6 +14,15 @@ type PoseLandmarkerLike = {
   close: () => void;
 };
 
+type VisionModule = {
+  FilesetResolver: {
+    forVisionTasks: (wasmRoot: string) => Promise<unknown>;
+  };
+  PoseLandmarker: {
+    createFromOptions: (fileset: unknown, options: Record<string, unknown>) => Promise<PoseLandmarkerLike>;
+  };
+};
+
 export default function CameraPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -41,13 +50,23 @@ export default function CameraPage() {
     };
   }, []);
 
+  async function loadVisionModule(): Promise<VisionModule> {
+    // Use runtime import from CDN so bundling does not require local @mediapipe/tasks-vision install.
+    const dynamicImporter = new Function(
+      "u",
+      "return import(/* webpackIgnore: true */ u)"
+    ) as (url: string) => Promise<VisionModule>;
+
+    return dynamicImporter('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/+esm');
+  }
+
   async function loadPoseLandmarker() {
     if (poseLandmarkerRef.current) return poseLandmarkerRef.current;
 
     setIsLoadingModel(true);
     try {
-      const vision = await import('@mediapipe/tasks-vision');
-      const fileset = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm');
+      const vision = await loadVisionModule();
+      const fileset = await vision.FilesetResolver.forVisionTasks('https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
 
       const pose = await vision.PoseLandmarker.createFromOptions(fileset, {
         baseOptions: {
