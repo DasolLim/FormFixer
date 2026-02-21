@@ -1,3 +1,2 @@
-# This app's runtime dependencies are managed in package.json (Node.js / npm).
-# Optional Python helper for ngrok workflows:
+# Optional Python utilities for local tunnel workflows (not required for app runtime)
 pyngrok==7.2.8
