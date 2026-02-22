@@ -1,15 +1,43 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import { useEffect, useMemo, useState, type ComponentType } from 'react';
 import { Section } from '@/components/layout/Section';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { addWorkoutEvent, fetchWorkoutEvents, toggleWorkoutEventCompletion, type WorkoutEventRow } from '@/lib/calendar/sessions';
+
+type FullCalendarComponentProps = {
+  plugins: unknown[];
+  initialView: string;
+  headerToolbar: { left: string; center: string; right: string };
+  events: Array<{ id: string; title: string; start: string; allDay: boolean }>;
+  dateClick?: (arg: { dateStr: string }) => void;
+  eventClick?: (arg: { event: { id: string } }) => void;
+  height?: string;
+};
+
+type CalendarBundle = {
+  CalendarComponent: ComponentType<FullCalendarComponentProps>;
+  dayGridPlugin: unknown;
+  timeGridPlugin: unknown;
+  interactionPlugin: unknown;
+};
+
+function normalizeModule(mod: unknown): unknown {
+  const candidate = mod as { default?: { default?: unknown } | unknown };
+  if (candidate?.default && typeof candidate.default === 'object' && 'default' in candidate.default) {
+    return (candidate.default as { default?: unknown }).default ?? candidate.default;
+  }
+  return candidate?.default ?? mod;
+}
+
+function isComponentType(value: unknown): value is ComponentType<FullCalendarComponentProps> {
+  if (typeof value === 'function') return true;
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return '$$typeof' in candidate || 'render' in candidate;
+}
 
 function toSafeText(value: unknown, fallback: string) {
   if (typeof value === 'string' || typeof value === 'number') return String(value);
@@ -22,6 +50,32 @@ export default function CalendarPage() {
   const [title, setTitle] = useState('Workout Session');
   const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState('');
+  const [calendarBundle, setCalendarBundle] = useState<CalendarBundle | null>(null);
+
+  useEffect(() => {
+    const importer = new Function('u', 'return import(/* webpackIgnore: true */ u)') as (url: string) => Promise<unknown>;
+
+    Promise.all([
+      importer('https://esm.sh/@fullcalendar/react@6.1.17?bundle'),
+      importer('https://esm.sh/@fullcalendar/daygrid@6.1.17?bundle'),
+      importer('https://esm.sh/@fullcalendar/timegrid@6.1.17?bundle'),
+      importer('https://esm.sh/@fullcalendar/interaction@6.1.17?bundle')
+    ])
+      .then(([reactMod, dayGridMod, timeGridMod, interactionMod]) => {
+        const CalendarComponent = normalizeModule(reactMod);
+        const dayGridPlugin = normalizeModule(dayGridMod);
+        const timeGridPlugin = normalizeModule(timeGridMod);
+        const interactionPlugin = normalizeModule(interactionMod);
+
+        if (!isComponentType(CalendarComponent)) {
+          setMessage('Calendar component failed to load. Please refresh.');
+          return;
+        }
+
+        setCalendarBundle({ CalendarComponent, dayGridPlugin, timeGridPlugin, interactionPlugin });
+      })
+      .catch(() => setMessage('Calendar failed to load. Check network and refresh.'));
+  }, []);
 
   async function loadEvents(currentUserId: string) {
     const result = await fetchWorkoutEvents(currentUserId);
@@ -44,13 +98,11 @@ export default function CalendarPage() {
         id: event.id,
         title: event.is_completed ? `✅ ${toSafeText(event.title, 'Workout')}` : toSafeText(event.title, 'Workout'),
         start: event.scheduled_date,
-        allDay: true,
-        extendedProps: {
-          isCompleted: event.is_completed
-        }
+        allDay: true
       })),
     [events]
   );
+
 
   const weekStats = useMemo(() => {
     const now = new Date();
@@ -71,6 +123,15 @@ export default function CalendarPage() {
     return { planned: weekly.length, completed };
   }, [events]);
 
+  async function handleToggleComplete(row: WorkoutEventRow) {
+    const result = await toggleWorkoutEventCompletion(row.id, !row.is_completed);
+    if (result.error) {
+      setMessage(result.error.message);
+      return;
+    }
+    if (userId) await loadEvents(userId);
+  }
+
   async function handleAddEvent() {
     setMessage('');
     if (!userId) {
@@ -88,15 +149,7 @@ export default function CalendarPage() {
     await loadEvents(userId);
   }
 
-  async function handleToggleComplete(row: WorkoutEventRow) {
-    const result = await toggleWorkoutEventCompletion(row.id, !row.is_completed);
-    if (result.error) {
-      setMessage(result.error.message);
-      return;
-    }
-
-    if (userId) await loadEvents(userId);
-  }
+  const CalendarComponent = calendarBundle?.CalendarComponent;
 
   return (
     <Section title="Workout Calendar" subtitle="FullCalendar" description="Plan sessions in a real month/week calendar and click events to toggle completion.">
@@ -126,21 +179,25 @@ export default function CalendarPage() {
       <div style={{ marginTop: 16 }}>
         <Card title="Calendar View">
           <div className="calendar-shell">
-            <FullCalendar
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
-              events={calendarEvents}
-              dateClick={(arg: { dateStr: string }) => {
-                setScheduledDate(arg.dateStr);
-                setMessage(`Selected ${new Date(arg.dateStr).toDateString()}.`);
-              }}
-              eventClick={(arg: { event: { id: string } }) => {
-                const row = events.find((event) => event.id === arg.event.id);
-                if (row) void handleToggleComplete(row);
-              }}
-              height="auto"
-            />
+            {CalendarComponent ? (
+              <CalendarComponent
+                plugins={[calendarBundle.dayGridPlugin, calendarBundle.timeGridPlugin, calendarBundle.interactionPlugin]}
+                initialView="dayGridMonth"
+                headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
+                events={calendarEvents}
+                dateClick={(arg) => {
+                  setScheduledDate(arg.dateStr);
+                  setMessage(`Selected ${new Date(arg.dateStr).toDateString()}.`);
+                }}
+                eventClick={(arg) => {
+                  const row = events.find((event) => event.id === arg.event.id);
+                  if (row) void handleToggleComplete(row);
+                }}
+                height="auto"
+              />
+            ) : (
+              <p style={{ color: 'var(--muted)' }}>Loading calendar...</p>
+            )}
           </div>
           <p style={{ color: 'var(--muted)', marginTop: 8, marginBottom: 0 }}>Tip: click a date to set the schedule input, or click an event to toggle complete/planned.</p>
         </Card>

@@ -1,7 +1,3 @@
-@import '@fullcalendar/core/index.css';
-@import '@fullcalendar/daygrid/index.css';
-@import '@fullcalendar/timegrid/index.css';
-
 :root {
   --bg: #070b14;
   --surface: #121a2b;
