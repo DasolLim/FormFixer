@@ -35,7 +35,11 @@ function normalizeModule(mod: unknown): unknown {
 function isComponentType(value: unknown): value is ComponentType<FullCalendarComponentProps> {
   if (typeof value === 'function') return true;
   if (!value || typeof value !== 'object') return false;
+
   const candidate = value as Record<string, unknown>;
+  const looksLikeReactElementObject = '$$typeof' in candidate && 'type' in candidate && 'props' in candidate;
+  if (looksLikeReactElementObject) return false;
+
   return '$$typeof' in candidate || 'render' in candidate;
 }
 
