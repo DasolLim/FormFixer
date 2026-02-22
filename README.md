@@ -1,12 +1,15 @@
-# FormFixer (v3 Platform Expansion)
+# FormFixer (v4 Social Foundation)
 
-## v3 features
-- Real-time form fixer (squat, push-up, lunge)
-- Program library + program detail + start program flow
-- Program progress tracking (week, completed workouts, completion %)
-- Nutrition logging (manual entry + USDA FoodData Central search)
-- Daily macro dashboard
-- Workout calendar planning + completion tracking (built-in manual calendar)
+## v4 features
+- Unique usernames (`profiles.username`) with DB-level uniqueness and client-side validation
+- Account privacy mode (`public` / `private`) for friend behavior
+- Friend search by username
+- Friend relationships + pending request inbox
+- In-app notifications:
+  - friend request received
+  - friend request accepted
+  - custom gym invite
+- Manual workout calendar + v3 training/nutrition/program features
 
 ## Environment variables
 Create `.env` in project root:
@@ -29,46 +32,42 @@ USDA_API_KEY=your-usda-fooddata-central-key
    npm run dev
    ```
 
+## v4 social routes
+- `/social` find friends, manage requests, send invite messages
+- `/notifications` in-app notification center
+- `/profile` username + privacy mode settings
 
-## Design direction
-- Inspired by clean dashboard patterns used in popular fitness apps (Nike Training Club, Fitbod, Strava):
-  - bold hero section
-  - clear module-based navigation
-  - card-first summaries for quick scanning
+## Updated folder structure (v4 additions)
+```txt
+src/
+  app/
+    social/page.tsx
+    notifications/page.tsx
+    profile/page.tsx                # updated with username/privacy settings
+  components/
+    social/
+      FriendCard.tsx
+      FriendRequestCard.tsx
+      NotificationItem.tsx
+    layout/Navbar.tsx               # updated with social link + bell indicator
+  lib/
+    social/
+      sessions.ts
+      types.ts
+    supabaseClient.ts               # updated singleton init (promise cache)
+supabase/
+  schema.sql                        # updated with v4 social tables + policies
+```
 
-## New routes
-- `/programs` program library
-- `/programs/[slug]` program detail + progress actions
-- `/nutrition` meal logging + USDA search + macro totals
-- `/calendar` workout planning calendar
-- Existing routes still work: `/camera`, `/dashboard`, `/profile`, `/login`
-
-## USDA integration details
-- Server-side routes keep API key private:
-  - `GET /api/usda/search?q=...`
-  - `GET /api/usda/food/:fdcId`
-- User can always manually edit calories/macros before saving meal logs.
-
-## Calendar integration details
-- Uses a built-in manual calendar view (no external calendar package required).
-- Supports month navigation, adding planned workouts, and marking complete.
-
-## Test steps (manual)
-1. Sign up / login on `/login`.
-2. Open `/programs`, start a program, mark workout complete.
-3. Open `/dashboard`, verify active program progress card updates.
-4. Open `/nutrition`, search USDA food, select item, edit servings/macros, save item.
-5. Verify daily macro totals update on `/nutrition` and dashboard calories card.
-6. Open `/calendar`, create workout event, switch month/week, mark completion.
-
-## Known limitations / deferred
-- No Stripe/payment integration in this phase.
-- No premium gating in this phase.
-- No food-photo nutrition API (deferred).
-- No advanced recommendation engine/personalization yet.
+## Social flow behavior
+- Public profile target:
+  - `Add Friend` immediately creates accepted friendship (both directions)
+- Private profile target:
+  - `Request Friend` creates pending request
+  - target user can accept/decline from `/social`
+- “Notify Friend” sends a text gym invite to recipient notifications
 
 ## VS Code terminal setup (Windows PowerShell)
-
 ```powershell
 # 1) Clean previous install artifacts
 Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
@@ -81,12 +80,22 @@ npm install
 # 3) Install optional Python helper dependency
 py -m pip install -r requirements.txt
 
-# 4) Start the app
+# 4) Start app
 npm run dev
 ```
 
-### Run checks
-```powershell
-npm run lint
-npm run typecheck
-```
+## Manual test steps (v4)
+1. Login and open `/profile`.
+2. Set a new username and choose privacy mode.
+3. Open `/social`, search another username.
+4. For a public user, click **Add Friend** and confirm they appear in friends list.
+5. For a private user, click **Request Friend**.
+6. Login as target user, open `/social`, accept/decline from pending inbox.
+7. From friends list, click **Notify Friend**, send message.
+8. Open `/notifications` as recipient and mark notification as read.
+
+## Known limitations (post-v4 ideas)
+- No chat threads/history yet (invite is single notification message)
+- No push/email/SMS notifications (in-app only)
+- No blocking/reporting/mute controls yet
+- No pagination for very large friend/notification lists yet

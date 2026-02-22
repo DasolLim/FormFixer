@@ -11,18 +11,39 @@ const links = [
   { href: '/programs', label: 'Programs' },
   { href: '/nutrition', label: 'Nutrition' },
   { href: '/calendar', label: 'Calendar' },
+  { href: '/social', label: 'Social' },
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/profile', label: 'Profile' }
 ];
 
 export function Navbar() {
   const [isAuthed, setIsAuthed] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  async function loadUnreadCount(nextUserId: string) {
+    const supabase = await getSupabaseClient();
+    const { data } = await supabase.from('notifications').select('id').eq('user_id', nextUserId).is('read_at', null);
+    setUnreadCount((data ?? []).length);
+  }
 
   useEffect(() => {
     let unsub: (() => void) | null = null;
     getSupabaseClient().then((supabase) => {
-      supabase.auth.getUser().then(({ data }: { data: { user: { id: string } | null } }) => setIsAuthed(Boolean(data.user)));
-      const { data } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { id: string } } | null) => setIsAuthed(Boolean(session?.user)));
+      supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
+        setIsAuthed(Boolean(data.user));
+        setUserId(data.user?.id ?? null);
+        if (data.user) await loadUnreadCount(data.user.id);
+      });
+
+      const { data } = supabase.auth.onAuthStateChange(async (_event: string, session: { user?: { id: string } } | null) => {
+        const nextId = session?.user?.id ?? null;
+        setIsAuthed(Boolean(nextId));
+        setUserId(nextId);
+        if (nextId) await loadUnreadCount(nextId);
+        else setUnreadCount(0);
+      });
+
       unsub = () => data.subscription.unsubscribe();
     });
 
@@ -59,7 +80,33 @@ export function Navbar() {
               {link.label}
             </Link>
           ))}
-          {isAuthed ? (
+
+          <Link href="/notifications" style={{ position: 'relative' }}>
+            🔔
+            {isAuthed && unreadCount > 0 ? (
+              <span
+                style={{
+                  position: 'absolute',
+                  top: -8,
+                  right: -10,
+                  minWidth: 16,
+                  height: 16,
+                  borderRadius: 999,
+                  background: 'var(--danger)',
+                  color: '#fff',
+                  fontSize: 10,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '0 4px'
+                }}
+              >
+                {unreadCount}
+              </span>
+            ) : null}
+          </Link>
+
+          {isAuthed && userId ? (
             <Button onClick={handleLogout} variant="ghost">
               Logout
             </Button>
