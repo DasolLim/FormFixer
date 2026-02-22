@@ -10,14 +10,14 @@
     "lint:fix": "eslint --fix"
   },
   "dependencies": {
+    "@fullcalendar/core": "^6.1.20",
+    "@fullcalendar/daygrid": "^6.1.20",
+    "@fullcalendar/interaction": "^6.1.20",
+    "@fullcalendar/react": "^6.1.20",
+    "@fullcalendar/timegrid": "^6.1.20",
     "next": "^14.2.30",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "@fullcalendar/react": "^6.1.17",
-    "@fullcalendar/core": "^6.1.17",
-    "@fullcalendar/daygrid": "^6.1.17",
-    "@fullcalendar/timegrid": "^6.1.17",
-    "@fullcalendar/interaction": "^6.1.17"
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
     "@types/node": "^22.15.29",
