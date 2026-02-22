@@ -50,7 +50,7 @@ USDA_API_KEY=your-usda-fooddata-central-key
 - User can always manually edit calories/macros before saving meal logs.
 
 ## Calendar integration details
-- Uses local FullCalendar packages (`@fullcalendar/*`) installed via npm.
+- Uses runtime FullCalendar ESM imports for compatibility when package registry is restricted.
 - Supports month/week views, adding planned workouts, and marking complete.
 
 ## Test steps (manual)
@@ -85,13 +85,28 @@ py -m pip install -r requirements.txt
 npm run dev
 ```
 
-### Install FullCalendar manually
-```powershell
-npm install @fullcalendar/core @fullcalendar/react @fullcalendar/daygrid @fullcalendar/timegrid @fullcalendar/interaction
-```
-
 ### Run checks
 ```powershell
 npm run lint
 npm run typecheck
 ```
+
+
+## Troubleshooting: FullCalendar + Next.js build errors
+If you see errors like:
+- `Can't resolve '@fullcalendar/daygrid/index.css'`
+- `Can't resolve '@fullcalendar/core/index.css'`
+- `Can't resolve '@fullcalendar/react'`
+
+then your local code/cache is likely out of sync with this repo's runtime-loading strategy.
+
+Run this in VS Code terminal (PowerShell):
+```powershell
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
+npm install
+npm run dev
+```
+
+Also make sure your `src/styles/globals.css` does **not** contain `@fullcalendar/*` CSS imports.
