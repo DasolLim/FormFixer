@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { createElement, useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/layout/Section';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +14,10 @@ type CalendarBundle = {
   interactionPlugin: any;
 };
 
+function normalizeModule(mod: any) {
+  return mod?.default?.default ?? mod?.default ?? mod;
+}
+
 export default function CalendarPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [events, setEvents] = useState<WorkoutEventRow[]>([]);
@@ -24,19 +28,29 @@ export default function CalendarPage() {
 
   useEffect(() => {
     const importer = new Function('u', 'return import(/* webpackIgnore: true */ u)') as (url: string) => Promise<any>;
+
     Promise.all([
       importer('https://esm.sh/@fullcalendar/react@6.1.17'),
       importer('https://esm.sh/@fullcalendar/daygrid@6.1.17'),
       importer('https://esm.sh/@fullcalendar/timegrid@6.1.17'),
       importer('https://esm.sh/@fullcalendar/interaction@6.1.17')
-    ]).then(([reactMod, dayGridMod, timeGridMod, interactionMod]) => {
-      setCalendarBundle({
-        CalendarComponent: reactMod.default,
-        dayGridPlugin: dayGridMod.default,
-        timeGridPlugin: timeGridMod.default,
-        interactionPlugin: interactionMod.default
+    ])
+      .then(([reactMod, dayGridMod, timeGridMod, interactionMod]) => {
+        const CalendarComponent = normalizeModule(reactMod);
+        const dayGridPlugin = normalizeModule(dayGridMod);
+        const timeGridPlugin = normalizeModule(timeGridMod);
+        const interactionPlugin = normalizeModule(interactionMod);
+
+        if (!CalendarComponent) {
+          setMessage('Calendar component failed to load. Please refresh.');
+          return;
+        }
+
+        setCalendarBundle({ CalendarComponent, dayGridPlugin, timeGridPlugin, interactionPlugin });
+      })
+      .catch(() => {
+        setMessage('Calendar failed to load from CDN. Check your network and refresh.');
       });
-    });
   }, []);
 
   async function loadEvents(currentUserId: string) {
@@ -107,8 +121,6 @@ export default function CalendarPage() {
     if (userId) await loadEvents(userId);
   }
 
-  const CalendarComponent = calendarBundle?.CalendarComponent;
-
   return (
     <Section title="Workout Calendar" subtitle="Planning" description="Schedule workouts, view monthly/weekly plan, and mark sessions complete.">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
@@ -128,14 +140,14 @@ export default function CalendarPage() {
       <div style={{ marginTop: 16 }}>
         <Card title="Calendar View">
           <div className="calendar-shell">
-            {CalendarComponent && calendarBundle ? (
-              <CalendarComponent
-                plugins={[calendarBundle.dayGridPlugin, calendarBundle.timeGridPlugin, calendarBundle.interactionPlugin]}
-                initialView="dayGridMonth"
-                headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
-                events={calendarEvents}
-                height="auto"
-              />
+            {calendarBundle?.CalendarComponent ? (
+              createElement(calendarBundle.CalendarComponent, {
+                plugins: [calendarBundle.dayGridPlugin, calendarBundle.timeGridPlugin, calendarBundle.interactionPlugin],
+                initialView: 'dayGridMonth',
+                headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' },
+                events: calendarEvents,
+                height: 'auto'
+              })
             ) : (
               <p style={{ color: 'var(--muted)' }}>Loading calendar...</p>
             )}
