@@ -18,4 +18,5 @@ yarn-error.log*
 # misc
 .DS_Store
 *.pem
+tsconfig.tsbuildinfo
 package-lock.json
