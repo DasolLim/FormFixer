@@ -6,7 +6,7 @@
 - Program progress tracking (week, completed workouts, completion %)
 - Nutrition logging (manual entry + USDA FoodData Central search)
 - Daily macro dashboard
-- Workout calendar planning + completion tracking (FullCalendar React)
+- Workout calendar planning + completion tracking (built-in manual calendar)
 
 ## Environment variables
 Create `.env` in project root:
@@ -50,8 +50,8 @@ USDA_API_KEY=your-usda-fooddata-central-key
 - User can always manually edit calories/macros before saving meal logs.
 
 ## Calendar integration details
-- Uses runtime FullCalendar ESM imports for compatibility when package registry is restricted.
-- Supports month/week views, adding planned workouts, and marking complete.
+- Uses a built-in manual calendar view (no external calendar package required).
+- Supports month navigation, adding planned workouts, and marking complete.
 
 ## Test steps (manual)
 1. Sign up / login on `/login`.
@@ -90,23 +90,3 @@ npm run dev
 npm run lint
 npm run typecheck
 ```
-
-
-## Troubleshooting: FullCalendar + Next.js build errors
-If you see errors like:
-- `Can't resolve '@fullcalendar/daygrid/index.css'`
-- `Can't resolve '@fullcalendar/core/index.css'`
-- `Can't resolve '@fullcalendar/react'`
-
-then your local code/cache is likely out of sync with this repo's runtime-loading strategy.
-
-Run this in VS Code terminal (PowerShell):
-```powershell
-Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
-npm install
-npm run dev
-```
-
-Also make sure your `src/styles/globals.css` does **not** contain `@fullcalendar/*` CSS imports.

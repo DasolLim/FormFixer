@@ -1,54 +1,38 @@
 'use client';
 
-import { useEffect, useMemo, useState, type ComponentType } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Section } from '@/components/layout/Section';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { addWorkoutEvent, fetchWorkoutEvents, toggleWorkoutEventCompletion, type WorkoutEventRow } from '@/lib/calendar/sessions';
 
-type FullCalendarComponentProps = {
-  plugins: unknown[];
-  initialView: string;
-  headerToolbar: { left: string; center: string; right: string };
-  events: Array<{ id: string; title: string; start: string; allDay: boolean }>;
-  selectable?: boolean;
-  editable?: boolean;
-  dateClick?: (arg: { dateStr: string }) => void;
-  eventClick?: (arg: { event: { id: string } }) => void;
-  eventContent?: (arg: { timeText: string; event: { title: string } }) => JSX.Element;
-  height?: string;
-};
-
-type CalendarBundle = {
-  CalendarComponent: ComponentType<FullCalendarComponentProps>;
-  dayGridPlugin: unknown;
-  timeGridPlugin: unknown;
-  interactionPlugin: unknown;
-};
-
-function normalizeModule(mod: unknown): unknown {
-  const candidate = mod as { default?: { default?: unknown } | unknown };
-  if (candidate?.default && typeof candidate.default === 'object' && 'default' in candidate.default) {
-    return (candidate.default as { default?: unknown }).default ?? candidate.default;
-  }
-  return candidate?.default ?? mod;
-}
-
-function isComponentType(value: unknown): value is ComponentType<FullCalendarComponentProps> {
-  if (typeof value === 'function') return true;
-  if (!value || typeof value !== 'object') return false;
-
-  const candidate = value as Record<string, unknown>;
-  const looksLikeReactElementObject = '$$typeof' in candidate && 'type' in candidate && 'props' in candidate;
-  if (looksLikeReactElementObject) return false;
-
-  return '$$typeof' in candidate || 'render' in candidate;
-}
-
 function toSafeText(value: unknown, fallback: string) {
   if (typeof value === 'string' || typeof value === 'number') return String(value);
   return fallback;
+}
+
+function toDateKey(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function buildMonthGrid(current: Date) {
+  const monthStart = new Date(current.getFullYear(), current.getMonth(), 1);
+  const monthEnd = new Date(current.getFullYear(), current.getMonth() + 1, 0);
+
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(monthStart.getDate() - monthStart.getDay());
+
+  const gridEnd = new Date(monthEnd);
+  gridEnd.setDate(monthEnd.getDate() + (6 - monthEnd.getDay()));
+
+  const days: Date[] = [];
+  const cursor = new Date(gridStart);
+  while (cursor <= gridEnd) {
+    days.push(new Date(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return days;
 }
 
 export default function CalendarPage() {
@@ -57,32 +41,7 @@ export default function CalendarPage() {
   const [title, setTitle] = useState('Workout Session');
   const [scheduledDate, setScheduledDate] = useState(new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState('');
-  const [calendarBundle, setCalendarBundle] = useState<CalendarBundle | null>(null);
-
-  useEffect(() => {
-    const importer = new Function('u', 'return import(/* webpackIgnore: true */ u)') as (url: string) => Promise<unknown>;
-
-    Promise.all([
-      importer('https://esm.sh/@fullcalendar/react@6.1.17?bundle'),
-      importer('https://esm.sh/@fullcalendar/daygrid@6.1.17?bundle'),
-      importer('https://esm.sh/@fullcalendar/timegrid@6.1.17?bundle'),
-      importer('https://esm.sh/@fullcalendar/interaction@6.1.17?bundle')
-    ])
-      .then(([reactMod, dayGridMod, timeGridMod, interactionMod]) => {
-        const CalendarComponent = normalizeModule(reactMod);
-        const dayGridPlugin = normalizeModule(dayGridMod);
-        const timeGridPlugin = normalizeModule(timeGridMod);
-        const interactionPlugin = normalizeModule(interactionMod);
-
-        if (!isComponentType(CalendarComponent)) {
-          setMessage('Calendar component failed to load. Please refresh.');
-          return;
-        }
-
-        setCalendarBundle({ CalendarComponent, dayGridPlugin, timeGridPlugin, interactionPlugin });
-      })
-      .catch(() => setMessage('Calendar failed to load. Check network and refresh.'));
-  }, []);
+  const [currentMonth, setCurrentMonth] = useState(() => new Date());
 
   async function loadEvents(currentUserId: string) {
     const result = await fetchWorkoutEvents(currentUserId);
@@ -99,16 +58,18 @@ export default function CalendarPage() {
     );
   }, []);
 
-  const calendarEvents = useMemo(
-    () =>
-      events.map((event) => ({
-        id: String(event.id),
-        title: event.is_completed ? `✅ ${toSafeText(event.title, 'Workout')}` : toSafeText(event.title, 'Workout'),
-        start: event.scheduled_date,
-        allDay: true
-      })),
-    [events]
-  );
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, WorkoutEventRow[]>();
+    for (const event of events) {
+      const key = event.scheduled_date;
+      const list = map.get(key) ?? [];
+      list.push(event);
+      map.set(key, list);
+    }
+    return map;
+  }, [events]);
+
+  const monthDays = useMemo(() => buildMonthGrid(currentMonth), [currentMonth]);
 
   async function handleToggleComplete(row: WorkoutEventRow) {
     const result = await toggleWorkoutEventCompletion(row.id, !row.is_completed);
@@ -136,25 +97,16 @@ export default function CalendarPage() {
     await loadEvents(userId);
   }
 
-  function renderEventContent(info: { timeText: string; event: { title: string } }) {
-    // Debug only:
-    // console.log('calendarEvents', calendarEvents);
-    // console.log('eventContent info', info);
-    const safeTime = toSafeText(info.timeText, '');
-    const safeTitle = toSafeText(info.event.title, 'Workout');
-
-    return (
-      <div>
-        {safeTime ? <b>{safeTime}</b> : null}
-        <i style={{ marginLeft: safeTime ? 6 : 0 }}>{safeTitle}</i>
-      </div>
-    );
+  function goPrevMonth() {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
   }
 
-  const CalendarComponent = calendarBundle?.CalendarComponent;
+  function goNextMonth() {
+    setCurrentMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+  }
 
   return (
-    <Section title="Workout Calendar" subtitle="Planning" description="Schedule workouts and click events to mark sessions complete.">
+    <Section title="Workout Calendar" subtitle="Manual Calendar" description="Simple built-in calendar: click a day to schedule and click an event to toggle completion.">
       <Card title="Schedule Workout">
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input value={title} onChange={(e) => setTitle(e.target.value)} style={{ minWidth: 220, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }} />
@@ -166,29 +118,68 @@ export default function CalendarPage() {
       <div style={{ marginTop: 16 }}>
         <Card title="Calendar View">
           <div className="calendar-shell">
-            {CalendarComponent ? (
-              <CalendarComponent
-                plugins={[calendarBundle.dayGridPlugin, calendarBundle.timeGridPlugin, calendarBundle.interactionPlugin]}
-                initialView="dayGridMonth"
-                headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
-                events={calendarEvents}
-                selectable
-                editable={false}
-                dateClick={(arg) => {
-                  setScheduledDate(arg.dateStr);
-                  setMessage(`Selected ${new Date(arg.dateStr).toDateString()}.`);
-                  console.log('dateClick', arg.dateStr);
-                }}
-                eventClick={(arg) => {
-                  const row = events.find((event) => String(event.id) === arg.event.id);
-                  if (row) void handleToggleComplete(row);
-                }}
-                eventContent={renderEventContent}
-                height="auto"
-              />
-            ) : (
-              <p style={{ color: 'var(--muted)' }}>Loading calendar...</p>
-            )}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <Button variant="ghost" onClick={goPrevMonth}>Prev</Button>
+              <strong>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</strong>
+              <Button variant="ghost" onClick={goNextMonth}>Next</Button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8, marginBottom: 8, color: 'var(--muted)' }}>
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((label) => (
+                <div key={label} style={{ textAlign: 'center', fontSize: 12 }}>{label}</div>
+              ))}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
+              {monthDays.map((day) => {
+                const key = toDateKey(day);
+                const dayEvents = eventsByDate.get(key) ?? [];
+                const isCurrentMonth = day.getMonth() === currentMonth.getMonth();
+                const isSelected = key === scheduledDate;
+
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setScheduledDate(key)}
+                    style={{
+                      minHeight: 100,
+                      borderRadius: 10,
+                      border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      background: isCurrentMonth ? '#0d1629' : '#0a1222',
+                      color: isCurrentMonth ? 'var(--text)' : 'var(--muted)',
+                      textAlign: 'left',
+                      padding: 8,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div style={{ fontSize: 12, marginBottom: 6 }}>{day.getDate()}</div>
+                    <div style={{ display: 'grid', gap: 4 }}>
+                      {dayEvents.slice(0, 2).map((event) => (
+                        <span
+                          key={event.id}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleToggleComplete(event);
+                          }}
+                          style={{
+                            display: 'block',
+                            fontSize: 11,
+                            borderRadius: 6,
+                            padding: '2px 6px',
+                            background: event.is_completed ? 'rgba(77,226,197,0.25)' : 'rgba(79,124,255,0.25)'
+                          }}
+                        >
+                          {event.is_completed ? '✅ ' : ''}
+                          {toSafeText(event.title, 'Workout')}
+                        </span>
+                      ))}
+                      {dayEvents.length > 2 ? <span style={{ fontSize: 11, color: 'var(--muted)' }}>+{dayEvents.length - 2} more</span> : null}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </Card>
       </div>
