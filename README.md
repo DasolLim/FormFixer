@@ -50,7 +50,7 @@ USDA_API_KEY=your-usda-fooddata-central-key
 - User can always manually edit calories/macros before saving meal logs.
 
 ## Calendar integration details
-- Uses FullCalendar React (free core) via runtime ESM imports.
+- Uses local FullCalendar packages (`@fullcalendar/*`) installed via npm.
 - Supports month/week views, adding planned workouts, and marking complete.
 
 ## Test steps (manual)
@@ -66,3 +66,32 @@ USDA_API_KEY=your-usda-fooddata-central-key
 - No premium gating in this phase.
 - No food-photo nutrition API (deferred).
 - No advanced recommendation engine/personalization yet.
+
+## VS Code terminal setup (Windows PowerShell)
+
+```powershell
+# 1) Clean previous install artifacts
+Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
+Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
+Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
+
+# 2) Install JavaScript dependencies
+npm install
+
+# 3) Install optional Python helper dependency
+py -m pip install -r requirements.txt
+
+# 4) Start the app
+npm run dev
+```
+
+### Install FullCalendar manually
+```powershell
+npm install @fullcalendar/core @fullcalendar/react @fullcalendar/daygrid @fullcalendar/timegrid @fullcalendar/interaction
+```
+
+### Run checks
+```powershell
+npm run lint
+npm run typecheck
+```
