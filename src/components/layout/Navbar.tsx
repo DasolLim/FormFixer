@@ -8,8 +8,10 @@ import { Button } from '@/components/ui/Button';
 const links = [
   { href: '/', label: 'Home' },
   { href: '/camera', label: 'Form Fixer' },
+  { href: '/programs', label: 'Programs' },
+  { href: '/nutrition', label: 'Nutrition' },
+  { href: '/calendar', label: 'Calendar' },
   { href: '/dashboard', label: 'Dashboard' },
-  { href: '/pricing', label: 'Pricing' },
   { href: '/profile', label: 'Profile' }
 ];
 
@@ -51,7 +53,7 @@ export function Navbar() {
         <Link href="/" style={{ fontWeight: 700, letterSpacing: '.04em' }}>
           FORMFIXER
         </Link>
-        <div style={{ display: 'flex', gap: 14, color: 'var(--muted)', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 14, color: 'var(--muted)', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {links.map((link) => (
             <Link key={link.href} href={link.href}>
               {link.label}

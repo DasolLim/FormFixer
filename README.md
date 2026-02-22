@@ -1,75 +1,61 @@
-# FormFixer (v2 Productization)
+# FormFixer (v3 Platform Expansion)
 
-## What is included
-- Supabase Auth (signup/login/logout)
-- Protected Dashboard and Profile pages
-- Saved workout sessions (`workout_sessions`)
-- Free vs Pro feature gating
-- Multi-exercise tracking: squat, push-up, lunge (lunge = Pro gated)
-- MediaPipe Pose tracking in browser with canvas overlay
+## v3 features
+- Real-time form fixer (squat, push-up, lunge)
+- Program library + program detail + start program flow
+- Program progress tracking (week, completed workouts, completion %)
+- Nutrition logging (manual entry + USDA FoodData Central search)
+- Daily macro dashboard
+- Workout calendar planning + completion tracking (FullCalendar React)
 
-> Note: Payment/Stripe integration is intentionally skipped in this version per current project instruction.
+## Environment variables
+Create `.env` in project root:
 
-## 1) Install
-```bash
-npm install
-```
-
-## 2) Create `.env`
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+USDA_API_KEY=your-usda-fooddata-central-key
 ```
 
-## 3) Apply database schema
-Run SQL from:
-- `supabase/schema.sql`
+## Setup
+1. Install dependencies:
+   ```bash
+   npm install
+   ```
+2. Run SQL in Supabase SQL editor:
+   - `supabase/schema.sql`
+3. Start app:
+   ```bash
+   npm run dev
+   ```
 
-This creates:
-- `profiles`
-- `workout_sessions`
-- `subscriptions`
-- RLS policies
-- signup trigger for profile/subscription defaults
+## New routes
+- `/programs` program library
+- `/programs/[slug]` program detail + progress actions
+- `/nutrition` meal logging + USDA search + macro totals
+- `/calendar` workout planning calendar
+- Existing routes still work: `/camera`, `/dashboard`, `/profile`, `/login`
 
-## 4) Run app
-```bash
-npm run dev
-```
+## USDA integration details
+- Server-side routes keep API key private:
+  - `GET /api/usda/search?q=...`
+  - `GET /api/usda/food/:fdcId`
+- User can always manually edit calories/macros before saving meal logs.
 
-## Core routes
-- `/` home
-- `/login` signup/login
-- `/camera` live form fixer + save session
-- `/dashboard` protected history list
-- `/profile` protected account + plan info
-- `/pricing` free vs pro UI (no payment flow)
+## Calendar integration details
+- Uses FullCalendar React (free core) via runtime ESM imports.
+- Supports month/week views, adding planned workouts, and marking complete.
 
-## How free vs pro gating works
-- Free: squat + push-up
-- Pro: lunge
-- Plan is read from `subscriptions` table.
+## Test steps (manual)
+1. Sign up / login on `/login`.
+2. Open `/programs`, start a program, mark workout complete.
+3. Open `/dashboard`, verify active program progress card updates.
+4. Open `/nutrition`, search USDA food, select item, edit servings/macros, save item.
+5. Verify daily macro totals update on `/nutrition` and dashboard calories card.
+6. Open `/calendar`, create workout event, switch month/week, mark completion.
 
-To manually upgrade a user in Supabase SQL editor:
-```sql
-update public.subscriptions
-set plan_tier = 'pro', status = 'active', updated_at = now()
-where user_id = 'YOUR_USER_UUID';
-```
-
-## iPhone Safari testing (Windows)
-Use HTTPS tunnel:
-```bash
-npm run dev -- --hostname 0.0.0.0 --port 3000
-ngrok http 3000
-```
-or
-```bash
-cloudflared tunnel --url http://localhost:3000
-```
-
-## What is deferred to v3
-- Real subscription billing and webhooks
-- Advanced personalized coaching plans
-- Calendar/program builder
-- Nutrition and food-photo tracking
+## Known limitations / deferred
+- No Stripe/payment integration in this phase.
+- No premium gating in this phase.
+- No food-photo nutrition API (deferred).
+- No advanced recommendation engine/personalization yet.

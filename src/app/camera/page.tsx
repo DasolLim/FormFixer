@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Section } from '@/components/layout/Section';
@@ -8,8 +8,8 @@ import { clearCanvas, drawPoseOverlay, resizeCanvasToVideo } from '@/lib/pose/dr
 import { smoothLandmarks, type Landmark } from '@/lib/pose/math';
 import { SQUAT_THRESHOLDS } from '@/lib/pose/constants';
 import { analyzeExercise, initialExerciseState, type ExerciseState } from '@/lib/workouts/analysis';
-import type { ExerciseType, PlanTier } from '@/lib/workouts/types';
-import { fetchPlanTier, saveWorkoutSession } from '@/lib/workouts/sessions';
+import type { ExerciseType } from '@/lib/workouts/types';
+import { saveWorkoutSession } from '@/lib/workouts/sessions';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
 type PoseLandmarkerLike = {
@@ -42,7 +42,6 @@ export default function CameraPage() {
   const rawCueRef = useRef('Stand where your full body is visible');
 
   const [exercise, setExercise] = useState<ExerciseType>('squat');
-  const [planTier, setPlanTier] = useState<PlanTier>('free');
   const [userId, setUserId] = useState<string | null>(null);
   const [isCameraRunning, setIsCameraRunning] = useState(false);
   const [repCount, setRepCount] = useState(0);
@@ -52,14 +51,11 @@ export default function CameraPage() {
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
 
-  const isExerciseLocked = useMemo(() => planTier === 'free' && exercise === 'lunge', [planTier, exercise]);
-
   useEffect(() => {
     getSupabaseClient().then((supabase) =>
       supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
         if (!data.user) return;
         setUserId(data.user.id);
-        setPlanTier(await fetchPlanTier(data.user.id));
       })
     );
 
@@ -90,11 +86,6 @@ export default function CameraPage() {
 
   async function startCamera() {
     setError(null);
-    if (isExerciseLocked) {
-      setError('Lunge is Pro-only. Choose squat/push-up or upgrade later.');
-      return;
-    }
-
     try {
       const pose = await loadPoseLandmarker();
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -202,7 +193,7 @@ export default function CameraPage() {
   return (
     <Section title="Camera / Form Fixer" subtitle="Live workout tracking" description="Pick an exercise, start camera, complete reps, then save session.">
       <Card>
-        <p style={{ color: 'var(--muted)', marginTop: 0 }}>Plan: {planTier.toUpperCase()} · {EXERCISE_TIPS[exercise]}</p>
+        <p style={{ color: 'var(--muted)', marginTop: 0 }}>{EXERCISE_TIPS[exercise]}</p>
 
         <div style={{ marginBottom: 12 }}>
           <label>
@@ -212,9 +203,9 @@ export default function CameraPage() {
               onChange={(e) => setExercise(e.target.value as ExerciseType)}
               style={{ marginLeft: 10, padding: 8, borderRadius: 8, background: '#0d1629', color: 'var(--text)', border: '1px solid var(--border)' }}
             >
-              <option value="squat">Squat (Free)</option>
-              <option value="pushup">Push-up (Free)</option>
-              <option value="lunge">Lunge (Pro)</option>
+              <option value="squat">Squat</option>
+              <option value="pushup">Push-up</option>
+              <option value="lunge">Lunge</option>
             </select>
           </label>
         </div>
