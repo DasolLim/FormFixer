@@ -50,7 +50,7 @@ USDA_API_KEY=your-usda-fooddata-central-key
 - User can always manually edit calories/macros before saving meal logs.
 
 ## Calendar integration details
-- Uses local FullCalendar packages (`@fullcalendar/*`) installed via npm.
+- Uses runtime FullCalendar ESM imports for compatibility when package registry is restricted.
 - Supports month/week views, adding planned workouts, and marking complete.
 
 ## Test steps (manual)
@@ -83,11 +83,6 @@ py -m pip install -r requirements.txt
 
 # 4) Start the app
 npm run dev
-```
-
-### Install FullCalendar manually
-```powershell
-npm install @fullcalendar/core @fullcalendar/react @fullcalendar/daygrid @fullcalendar/timegrid @fullcalendar/interaction
 ```
 
 ### Run checks
