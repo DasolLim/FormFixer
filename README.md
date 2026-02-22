@@ -29,6 +29,12 @@ USDA_API_KEY=your-usda-fooddata-central-key
    npm run dev
    ```
 
+## Design direction
+- Inspired by clean dashboard patterns used in popular fitness apps (Nike Training Club, Fitbod, Strava):
+  - bold hero section
+  - clear module-based navigation
+  - card-first summaries for quick scanning
+
 ## New routes
 - `/programs` program library
 - `/programs/[slug]` program detail + progress actions

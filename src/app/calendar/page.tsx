@@ -107,6 +107,8 @@ export default function CalendarPage() {
     if (userId) await loadEvents(userId);
   }
 
+  const CalendarComponent = calendarBundle?.CalendarComponent;
+
   return (
     <Section title="Workout Calendar" subtitle="Planning" description="Schedule workouts, view monthly/weekly plan, and mark sessions complete.">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
@@ -125,17 +127,19 @@ export default function CalendarPage() {
 
       <div style={{ marginTop: 16 }}>
         <Card title="Calendar View">
-          {calendarBundle ? (
-            <calendarBundle.CalendarComponent
-              plugins={[calendarBundle.dayGridPlugin, calendarBundle.timeGridPlugin, calendarBundle.interactionPlugin]}
-              initialView="dayGridMonth"
-              headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
-              events={calendarEvents}
-              height="auto"
-            />
-          ) : (
-            <p style={{ color: 'var(--muted)' }}>Loading calendar...</p>
-          )}
+          <div className="calendar-shell">
+            {CalendarComponent && calendarBundle ? (
+              <CalendarComponent
+                plugins={[calendarBundle.dayGridPlugin, calendarBundle.timeGridPlugin, calendarBundle.interactionPlugin]}
+                initialView="dayGridMonth"
+                headerToolbar={{ left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek' }}
+                events={calendarEvents}
+                height="auto"
+              />
+            ) : (
+              <p style={{ color: 'var(--muted)' }}>Loading calendar...</p>
+            )}
+          </div>
         </Card>
       </div>
 
