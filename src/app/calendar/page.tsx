@@ -18,6 +18,22 @@ function normalizeModule(mod: any) {
   return mod?.default?.default ?? mod?.default ?? mod;
 }
 
+function isComponentType(value: unknown) {
+  if (typeof value === 'function') return true;
+  if (!value || typeof value !== 'object') return false;
+
+  const candidate = value as Record<string, unknown>;
+  const hasReactElementShape = '$$typeof' in candidate && 'props' in candidate;
+  if (hasReactElementShape) return false;
+
+  return '$$typeof' in candidate || 'render' in candidate;
+}
+
+function toSafeText(value: unknown, fallback: string) {
+  if (typeof value === 'string' || typeof value === 'number') return String(value);
+  return fallback;
+}
+
 export default function CalendarPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [events, setEvents] = useState<WorkoutEventRow[]>([]);
@@ -41,7 +57,7 @@ export default function CalendarPage() {
         const timeGridPlugin = normalizeModule(timeGridMod);
         const interactionPlugin = normalizeModule(interactionMod);
 
-        if (!CalendarComponent) {
+        if (!isComponentType(CalendarComponent)) {
           setMessage('Calendar component failed to load. Please refresh.');
           return;
         }
@@ -72,7 +88,7 @@ export default function CalendarPage() {
     () =>
       events.map((event) => ({
         id: event.id,
-        title: event.is_completed ? `✅ ${event.title}` : event.title,
+        title: event.is_completed ? `✅ ${toSafeText(event.title, 'Workout')}` : toSafeText(event.title, 'Workout'),
         start: event.scheduled_date
       })),
     [events]
@@ -121,6 +137,11 @@ export default function CalendarPage() {
     if (userId) await loadEvents(userId);
   }
 
+  // Debug helpers (uncomment while diagnosing object-child errors)
+  // console.log('calendarBundle', calendarBundle);
+  // console.log('firstEvent', events[0]);
+  // console.log('calendarEvents sample', calendarEvents[0]);
+
   return (
     <Section title="Workout Calendar" subtitle="Planning" description="Schedule workouts, view monthly/weekly plan, and mark sessions complete.">
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginBottom: 16 }}>
@@ -157,7 +178,11 @@ export default function CalendarPage() {
 
       <div style={{ marginTop: 16, display: 'grid', gap: 10 }}>
         {events.map((event) => (
-          <Card key={event.id} title={event.title} description={`${new Date(event.scheduled_date).toDateString()} · ${event.is_completed ? 'Completed' : 'Planned'}`}>
+          <Card
+            key={event.id}
+            title={toSafeText(event.title, 'Workout')}
+            description={`${new Date(event.scheduled_date).toDateString()} · ${event.is_completed ? 'Completed' : 'Planned'}`}
+          >
             <Button variant="ghost" onClick={() => handleToggleComplete(event)}>
               {event.is_completed ? 'Mark Planned' : 'Mark Complete'}
             </Button>
