@@ -34,7 +34,13 @@ export function Navbar() {
     let unsub: (() => void) | null = null;
 
     getSupabaseClient()
-      .then((supabase) => {
+      .then(async (supabase) => {
+        // In dev, clear persisted auth session on each full app boot.
+        // This ensures a fresh logged-out state after stopping/restarting `npm run dev`.
+        if (process.env.NODE_ENV === 'development') {
+          await supabase.auth.signOut();
+        }
+
         supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
           if (!active) return;
           setIsAuthed(Boolean(data.user));

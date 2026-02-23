@@ -99,3 +99,8 @@ npm run dev
 - No push/email/SMS notifications (in-app only)
 - No blocking/reporting/mute controls yet
 - No pagination for very large friend/notification lists yet
+
+
+## Dev auth behavior note
+- In development (`npm run dev`), app boot now clears persisted auth session once per full reload so you start logged out after restart/relaunch.
+- This is intentional to prevent stale auth state while debugging login/logout flows.
