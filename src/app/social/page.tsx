@@ -32,6 +32,7 @@ export default function SocialPage() {
   const [inviteFriendId, setInviteFriendId] = useState<string | null>(null);
   const [inviteText, setInviteText] = useState('Gym today at 7pm?');
   const [message, setMessage] = useState('');
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
 
   async function loadSocialData(currentUserId: string) {
     const [friendsResult, pendingResult, outgoingResult] = await Promise.all([
@@ -109,20 +110,30 @@ export default function SocialPage() {
   }
 
   async function handleRespond(requestId: string, requesterId: string, accept: boolean) {
-    if (!userId) return;
-    const result = await respondToFriendRequest({
-      currentUserId: userId,
-      request: { id: requestId, requester_id: requesterId, receiver_id: userId, status: 'pending', created_at: '', responded_at: null },
-      accept
-    });
+    if (!userId || processingRequestId) return;
+    setMessage('');
+    setProcessingRequestId(requestId);
 
-    if (result.error) {
-      setMessage(result.error.message);
-      return;
+    setPending((previous) => previous.filter((request) => request.id !== requestId));
+
+    try {
+      const result = await respondToFriendRequest({
+        currentUserId: userId,
+        request: { id: requestId, requester_id: requesterId, receiver_id: userId, status: 'pending', created_at: '', responded_at: null },
+        accept
+      });
+
+      if (result.error) {
+        setMessage(result.error.message);
+        await loadSocialData(userId);
+        return;
+      }
+
+      setMessage(accept ? 'Friend request accepted.' : 'Friend request declined.');
+      await loadSocialData(userId);
+    } finally {
+      setProcessingRequestId(null);
     }
-
-    setMessage(accept ? 'Friend request accepted.' : 'Friend request declined.');
-    await loadSocialData(userId);
   }
 
   async function handleSendInvite() {
@@ -158,7 +169,12 @@ export default function SocialPage() {
                 <Card key={profile.id} title={profile.username ?? 'Unnamed'} description={profile.email ?? 'No email'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
                     <span style={{ color: 'var(--muted)', fontSize: 13 }}>{profile.privacy_mode === 'private' ? 'Private account' : 'Public account'}</span>
-                    <Button variant="ghost" onClick={() => handleFriendAction(profile)} style={{ opacity: actionLabel === 'Already Friends' || actionLabel === 'Request Pending' ? 0.5 : 1 }}>
+                    <Button
+                      variant="ghost"
+                      onClick={() => handleFriendAction(profile)}
+                      disabled={actionLabel === 'Already Friends' || actionLabel === 'Request Pending'}
+                      style={{ opacity: actionLabel === 'Already Friends' || actionLabel === 'Request Pending' ? 0.5 : 1 }}
+                    >
                       {actionLabel}
                     </Button>
                   </div>
@@ -178,6 +194,7 @@ export default function SocialPage() {
                     requester={pendingProfiles[request.requester_id] ?? null}
                     onAccept={() => handleRespond(request.id, request.requester_id, true)}
                     onDecline={() => handleRespond(request.id, request.requester_id, false)}
+                    disabled={processingRequestId === request.id}
                   />
                 ))
               ) : (
