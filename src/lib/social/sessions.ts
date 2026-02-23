@@ -264,17 +264,14 @@ export async function respondToFriendRequest(payload: { currentUserId: string; r
   if (!updatedRow) return { error: { message: 'This request was already handled.' } };
 
   if (payload.accept) {
-    const { error: edgeErrorA } = await supabase.from('friendships').insert({ user_id: payload.request.requester_id, friend_id: payload.currentUserId });
-    if (edgeErrorA && !isDuplicateKeyError(edgeErrorA)) return { error: edgeErrorA };
-
-    const { error: edgeErrorB } = await supabase.from('friendships').insert({ user_id: payload.currentUserId, friend_id: payload.request.requester_id });
-    if (edgeErrorB && !isDuplicateKeyError(edgeErrorB)) return { error: edgeErrorB };
+    const { error: edgeError } = await supabase.from('friendships').insert({ user_id: payload.request.requester_id, friend_id: payload.currentUserId });
+    if (edgeError && !isDuplicateKeyError(edgeError)) return { error: edgeError };
 
     const { error: notifError } = await supabase.from('notifications').insert({
       user_id: payload.request.requester_id,
       actor_id: payload.currentUserId,
       type: 'friend_request_accepted',
-      message: 'Your friend request was accepted.'
+      message: 'Your follow request was accepted.'
     });
 
     return { error: notifError };
