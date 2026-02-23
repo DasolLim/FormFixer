@@ -19,6 +19,10 @@ function toPrivacyMode(isPrivate?: boolean, privacyMode?: string | null): Privac
   return privacyMode === 'private' ? 'private' : 'public';
 }
 
+function isPrivateProfile(profile: { is_private?: boolean; privacy_mode?: string | null }) {
+  return toPrivacyMode(profile.is_private, profile.privacy_mode ?? null) === 'private';
+}
+
 function normalizeProfileRow(row: any): ProfileRow {
   const privacy = toPrivacyMode(row?.is_private, row?.privacy_mode);
   return {
@@ -85,8 +89,17 @@ export async function updateMyProfileSettings(payload: { userId: string; usernam
     is_private: payload.privacyMode === 'private'
   };
 
-  const { error } = await supabase.from('profiles').upsert(upsertPayload, { onConflict: 'id' });
-  return { error };
+  const primaryUpsert = await supabase.from('profiles').upsert(upsertPayload, { onConflict: 'id' });
+  if (!primaryUpsert.error) return { error: null };
+
+  if (isMissingSchemaError(primaryUpsert.error)) {
+    const fallbackUpsert = await supabase
+      .from('profiles')
+      .upsert({ id: payload.userId, username: normalized, privacy_mode: payload.privacyMode }, { onConflict: 'id' });
+    return { error: fallbackUpsert.error };
+  }
+
+  return { error: primaryUpsert.error };
 }
 
 export async function searchProfilesByUsername(currentUserId: string, query: string) {
@@ -276,6 +289,25 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
   const legacy = await supabase.from('friendships').select('id').eq('user_id', currentUserId).eq('friend_id', targetUserId).maybeSingle();
   if (legacy.error) return { data: base, error: legacy.error };
   base.isFollowing = Boolean(legacy.data);
+
+  const legacyOutgoing = await supabase
+    .from('friend_requests')
+    .select('id')
+    .eq('requester_id', currentUserId)
+    .eq('receiver_id', targetUserId)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (!legacyOutgoing.error) base.isRequested = Boolean(legacyOutgoing.data);
+
+  const legacyIncoming = await supabase
+    .from('friend_requests')
+    .select('id')
+    .eq('requester_id', targetUserId)
+    .eq('receiver_id', currentUserId)
+    .eq('status', 'pending')
+    .maybeSingle();
+  if (!legacyIncoming.error) base.requestedByThem = Boolean(legacyIncoming.data);
+
   return { data: base, error: null };
 }
 
@@ -286,14 +318,14 @@ export async function sendFriendAction(payload: {
   hasPendingOutgoing: boolean;
 }) {
   const supabase = await getSupabaseClient();
-  const relationship = await resolveRelationshipState(payload.currentUserId, payload.targetProfile.id, payload.targetProfile.privacy_mode === 'private');
+  const relationship = await resolveRelationshipState(payload.currentUserId, payload.targetProfile.id, isPrivateProfile(payload.targetProfile));
   if (relationship.error) return { error: relationship.error };
 
   if (relationship.data.isSelf) return { error: { message: 'You cannot follow yourself.' } };
   if (relationship.data.isFollowing) return { error: { message: 'Already following this user.' } };
   if (relationship.data.isRequested) return { error: { message: 'Follow request already pending.' } };
 
-  const targetIsPrivate = payload.targetProfile.privacy_mode === 'private';
+  const targetIsPrivate = isPrivateProfile(payload.targetProfile);
 
   if (!targetIsPrivate) {
     const followInsert = await supabase.from('follows').insert({ follower_id: payload.currentUserId, following_id: payload.targetProfile.id });
