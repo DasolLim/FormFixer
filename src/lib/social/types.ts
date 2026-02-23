@@ -5,6 +5,7 @@ export type ProfileRow = {
   email: string | null;
   username: string | null;
   privacy_mode: PrivacyMode;
+  is_private?: boolean;
   following_count: number;
   follower_count: number;
 };
@@ -23,6 +24,30 @@ export type FriendshipRow = {
   user_id: string;
   friend_id: string;
   created_at: string;
+};
+
+export type FollowRow = {
+  id: string;
+  follower_id: string;
+  following_id: string;
+  created_at: string;
+};
+
+export type FollowRequestRow = {
+  id: string;
+  requester_id: string;
+  target_user_id: string;
+  status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+  created_at: string;
+  updated_at: string;
+};
+
+export type RelationshipState = {
+  isSelf: boolean;
+  isFollowing: boolean;
+  isRequested: boolean;
+  requestedByThem: boolean;
+  targetIsPrivate: boolean;
 };
 
 export type NotificationRow = {

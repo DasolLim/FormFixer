@@ -17,7 +17,8 @@ import {
   searchProfilesByUsername,
   sendFriendAction,
   sendGymInvite,
-  respondToFriendRequest
+  respondToFriendRequest,
+  unfollowUser
 } from '@/lib/social/sessions';
 import type { ProfileRow } from '@/lib/social/types';
 
@@ -93,6 +94,17 @@ export default function SocialPage() {
       return;
     }
 
+    if (existingFriend.value) {
+      const unfollowResult = await unfollowUser({ currentUserId: userId, targetUserId: targetProfile.id });
+      if (unfollowResult.error) {
+        setMessage(unfollowResult.error.message);
+        return;
+      }
+      setMessage('Unfollowed.');
+      await loadSocialData(userId);
+      return;
+    }
+
     const result = await sendFriendAction({
       currentUserId: userId,
       targetProfile,
@@ -105,7 +117,8 @@ export default function SocialPage() {
       return;
     }
 
-    setMessage(targetProfile.privacy_mode === 'public' ? 'Friend added.' : 'Friend request sent.');
+    const targetIsPrivate = typeof targetProfile.is_private === 'boolean' ? targetProfile.is_private : targetProfile.privacy_mode === 'private';
+    setMessage(targetIsPrivate ? 'Follow request sent.' : 'Now following.');
     await loadSocialData(userId);
   }
 
@@ -157,23 +170,22 @@ export default function SocialPage() {
           </div>
           <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
             {results.map((profile) => {
+              const targetIsPrivate = typeof profile.is_private === 'boolean' ? profile.is_private : profile.privacy_mode === 'private';
               const actionLabel = friendIds.has(profile.id)
-                ? 'Already Friends'
+                ? 'Following'
                 : outgoingPendingUserIds.has(profile.id)
-                  ? 'Request Pending'
-                  : profile.privacy_mode === 'public'
-                    ? 'Add Friend'
-                    : 'Request Friend';
+                  ? 'Requested'
+                  : 'Follow';
 
               return (
                 <Card key={profile.id} title={profile.username ?? 'Unnamed'} description={profile.email ?? 'No email'}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: 'var(--muted)', fontSize: 13 }}>{profile.privacy_mode === 'private' ? 'Private account' : 'Public account'}</span>
+                    <span style={{ color: 'var(--muted)', fontSize: 13 }}>{targetIsPrivate ? 'Private account' : 'Public account'}</span>
                     <Button
                       variant="ghost"
                       onClick={() => handleFriendAction(profile)}
-                      disabled={actionLabel === 'Already Friends' || actionLabel === 'Request Pending'}
-                      style={{ opacity: actionLabel === 'Already Friends' || actionLabel === 'Request Pending' ? 0.5 : 1 }}
+                      disabled={actionLabel === 'Requested'}
+                      style={{ opacity: actionLabel === 'Requested' ? 0.5 : 1 }}
                     >
                       {actionLabel}
                     </Button>

@@ -13,6 +13,7 @@ create table if not exists public.profiles (
 );
 
 alter table public.profiles add column if not exists username text;
+alter table public.profiles add column if not exists is_private boolean not null default false;
 alter table public.profiles add column if not exists privacy_mode text not null default 'public';
 alter table public.profiles drop constraint if exists profiles_privacy_mode_check;
 alter table public.profiles add constraint profiles_privacy_mode_check check (privacy_mode in ('public', 'private'));
@@ -89,6 +90,28 @@ create table if not exists public.friendships (
   unique (user_id, friend_id)
 );
 
+-- Instagram-style follows
+create table if not exists public.follows (
+  id uuid primary key default gen_random_uuid(),
+  follower_id uuid not null references auth.users(id) on delete cascade,
+  following_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  check (follower_id <> following_id),
+  unique (follower_id, following_id)
+);
+
+-- Private-account follow requests
+create table if not exists public.follow_requests (
+  id uuid primary key default gen_random_uuid(),
+  requester_id uuid not null references auth.users(id) on delete cascade,
+  target_user_id uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending' check (status in ('pending', 'accepted', 'rejected', 'cancelled')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (requester_id <> target_user_id),
+  unique (requester_id, target_user_id)
+);
+
 -- Social: notifications
 create table if not exists public.notifications (
   id uuid primary key default gen_random_uuid(),
@@ -108,6 +131,8 @@ alter table public.meal_items enable row level security;
 alter table public.workout_events enable row level security;
 alter table public.friend_requests enable row level security;
 alter table public.friendships enable row level security;
+alter table public.follows enable row level security;
+alter table public.follow_requests enable row level security;
 alter table public.notifications enable row level security;
 
 -- Re-runnable policy setup
@@ -137,6 +162,14 @@ DROP POLICY IF EXISTS "friend_requests_update_involved" ON public.friend_request
 DROP POLICY IF EXISTS "friendships_select_own" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_insert_own" ON public.friendships;
 DROP POLICY IF EXISTS "friendships_delete_own" ON public.friendships;
+
+DROP POLICY IF EXISTS "follows_select_own_or_target" ON public.follows;
+DROP POLICY IF EXISTS "follows_insert_own" ON public.follows;
+DROP POLICY IF EXISTS "follows_delete_own" ON public.follows;
+
+DROP POLICY IF EXISTS "follow_requests_select_involved" ON public.follow_requests;
+DROP POLICY IF EXISTS "follow_requests_insert_requester" ON public.follow_requests;
+DROP POLICY IF EXISTS "follow_requests_update_target_or_requester" ON public.follow_requests;
 
 DROP POLICY IF EXISTS "notifications_select_own" ON public.notifications;
 DROP POLICY IF EXISTS "notifications_insert_actor" ON public.notifications;
@@ -190,6 +223,21 @@ with check (
   )
 );
 create policy "friendships_delete_own" on public.friendships for delete using (auth.uid() = user_id);
+
+create policy "follows_select_own_or_target" on public.follows
+for select using (auth.uid() = follower_id or auth.uid() = following_id);
+create policy "follows_insert_own" on public.follows
+for insert with check (auth.uid() = follower_id and follower_id <> following_id);
+create policy "follows_delete_own" on public.follows
+for delete using (auth.uid() = follower_id);
+
+create policy "follow_requests_select_involved" on public.follow_requests
+for select using (auth.uid() = requester_id or auth.uid() = target_user_id);
+create policy "follow_requests_insert_requester" on public.follow_requests
+for insert with check (auth.uid() = requester_id and requester_id <> target_user_id);
+create policy "follow_requests_update_target_or_requester" on public.follow_requests
+for update using (auth.uid() = requester_id or auth.uid() = target_user_id)
+with check (auth.uid() = requester_id or auth.uid() = target_user_id);
 
 create policy "notifications_select_own" on public.notifications for select using (auth.uid() = user_id);
 create policy "notifications_insert_actor" on public.notifications for insert with check (auth.uid() = actor_id);
