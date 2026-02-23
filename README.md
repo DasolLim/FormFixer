@@ -104,3 +104,8 @@ npm run dev
 ## Dev auth behavior note
 - In development (`npm run dev`), app boot now clears persisted auth session once per full reload so you start logged out after restart/relaunch.
 - This is intentional to prevent stale auth state while debugging login/logout flows.
+
+
+## Social schema migration note
+If you see errors like `column profiles.username does not exist`, your Supabase database is on an older schema.
+Run `supabase/schema.sql` again in Supabase SQL Editor (it is idempotent and safe to re-run).

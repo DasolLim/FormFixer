@@ -7,7 +7,7 @@ import { Section } from '@/components/layout/Section';
 import { Button } from '@/components/ui/Button';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { fetchPlanTier } from '@/lib/workouts/sessions';
-import { fetchMyProfile, updateMyProfileSettings } from '@/lib/social/sessions';
+import { fetchFriendCounts, fetchMyProfile, updateMyProfileSettings } from '@/lib/social/sessions';
 import type { PrivacyMode } from '@/lib/social/types';
 
 export default function ProfilePage() {
@@ -17,6 +17,26 @@ export default function ProfilePage() {
   const [username, setUsername] = useState('');
   const [privacyMode, setPrivacyMode] = useState<PrivacyMode>('public');
   const [message, setMessage] = useState('');
+  const [followers, setFollowers] = useState(0);
+  const [following, setFollowing] = useState(0);
+  const [friends, setFriends] = useState(0);
+
+  async function loadProfileData(currentUserId: string) {
+    const [profileResult, countResult] = await Promise.all([fetchMyProfile(currentUserId), fetchFriendCounts(currentUserId)]);
+
+    if (!profileResult.error && profileResult.data) {
+      setUsername(profileResult.data.username ?? '');
+      setPrivacyMode(profileResult.data.privacy_mode);
+    } else if (profileResult.error) {
+      setMessage(profileResult.error.message);
+    }
+
+    if (!countResult.error) {
+      setFollowers(countResult.data.followers);
+      setFollowing(countResult.data.following);
+      setFriends(countResult.data.friends);
+    }
+  }
 
   useEffect(() => {
     getSupabaseClient().then((supabase) =>
@@ -25,12 +45,7 @@ export default function ProfilePage() {
         setUserId(data.user.id);
         setEmail(data.user.email ?? '');
         setTier(await fetchPlanTier(data.user.id));
-
-        const profileResult = await fetchMyProfile(data.user.id);
-        if (!profileResult.error && profileResult.data) {
-          setUsername(profileResult.data.username ?? '');
-          setPrivacyMode(profileResult.data.privacy_mode);
-        }
+        await loadProfileData(data.user.id);
       })
     );
   }, []);
@@ -46,6 +61,7 @@ export default function ProfilePage() {
     }
 
     setMessage('Profile settings updated.');
+    await loadProfileData(userId);
   }
 
   return (
@@ -54,6 +70,13 @@ export default function ProfilePage() {
         <Card title="Email" description={email || 'No email available'} />
         <div style={{ marginTop: 12 }}>
           <Card title="Plan" description={tier === 'pro' ? 'Pro' : 'Free'} />
+        </div>
+
+        <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+          <Card title="Username" description={username || 'Not set'} />
+          <Card title="Friends" description={`${friends}`} />
+          <Card title="Following" description={`${following}`} />
+          <Card title="Followers" description={`${followers}`} />
         </div>
 
         <div style={{ marginTop: 12 }}>

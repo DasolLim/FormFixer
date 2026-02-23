@@ -5,9 +5,30 @@ function normalizeUsername(value: string) {
   return value.trim().toLowerCase();
 }
 
+function isMissingColumnError(error: { message?: string } | null) {
+  return Boolean(error?.message?.toLowerCase().includes('column') && error?.message?.toLowerCase().includes('does not exist'));
+}
+
 export async function fetchMyProfile(userId: string) {
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase.from('profiles').select('id,email,username,privacy_mode').eq('id', userId).maybeSingle();
+
+  if (isMissingColumnError(error)) {
+    const fallback = await supabase.from('profiles').select('id,email').eq('id', userId).maybeSingle();
+    if (fallback.error) return { data: null as ProfileRow | null, error: fallback.error };
+    return {
+      data: (fallback.data
+        ? {
+            id: fallback.data.id,
+            email: fallback.data.email,
+            username: null,
+            privacy_mode: 'public'
+          }
+        : null) as ProfileRow | null,
+      error: { message: 'Social columns are missing. Please run latest supabase/schema.sql migration.' }
+    };
+  }
+
   return { data: (data ?? null) as ProfileRow | null, error };
 }
 
@@ -26,10 +47,19 @@ export async function updateMyProfileSettings(payload: { userId: string; usernam
     .neq('id', payload.userId)
     .maybeSingle();
 
+  if (isMissingColumnError(findError)) {
+    return { error: { message: 'Database is missing social columns. Run supabase/schema.sql in Supabase SQL editor.' } };
+  }
+
   if (findError) return { error: findError };
   if (existing) return { error: { message: 'That username is already taken.' } };
 
   const { error } = await supabase.from('profiles').update({ username: normalized, privacy_mode: payload.privacyMode }).eq('id', payload.userId);
+
+  if (isMissingColumnError(error)) {
+    return { error: { message: 'Database is missing social columns. Run supabase/schema.sql in Supabase SQL editor.' } };
+  }
+
   return { error };
 }
 
@@ -45,7 +75,27 @@ export async function searchProfilesByUsername(currentUserId: string, query: str
     .neq('id', currentUserId)
     .limit(20);
 
+  if (isMissingColumnError(error)) {
+    return { data: [] as ProfileRow[], error: { message: 'Username search requires latest social schema migration.' } };
+  }
+
   return { data: (data ?? []) as ProfileRow[], error };
+}
+
+export async function fetchFriendCounts(userId: string) {
+  const supabase = await getSupabaseClient();
+  const { data: followingRows, error: followingError } = await supabase.from('friendships').select('friend_id').eq('user_id', userId);
+  if (followingError) return { data: { following: 0, followers: 0, friends: 0 }, error: followingError };
+
+  const { data: followerRows, error: followerError } = await supabase.from('friendships').select('user_id').eq('friend_id', userId);
+  if (followerError) return { data: { following: 0, followers: 0, friends: 0 }, error: followerError };
+
+  const followingSet = new Set((followingRows ?? []).map((row: { friend_id: string }) => row.friend_id));
+  const followerSet = new Set((followerRows ?? []).map((row: { user_id: string }) => row.user_id));
+  let friends = 0;
+  for (const id of followingSet) if (followerSet.has(id)) friends += 1;
+
+  return { data: { following: followingSet.size, followers: followerSet.size, friends }, error: null };
 }
 
 export async function fetchFriends(userId: string) {
@@ -208,7 +258,6 @@ export async function markNotificationRead(notificationId: string) {
   return { error };
 }
 
-
 export async function fetchProfilesByIds(ids: string[]) {
   const supabase = await getSupabaseClient();
   if (!ids.length) return { data: [] as ProfileRow[], error: null };
@@ -219,12 +268,7 @@ export async function fetchProfilesByIds(ids: string[]) {
 
 export async function areFriends(userId: string, friendId: string) {
   const supabase = await getSupabaseClient();
-  const { data, error } = await supabase
-    .from('friendships')
-    .select('id')
-    .eq('user_id', userId)
-    .eq('friend_id', friendId)
-    .maybeSingle();
+  const { data, error } = await supabase.from('friendships').select('id').eq('user_id', userId).eq('friend_id', friendId).maybeSingle();
 
   if (error) return { value: false, error };
   return { value: Boolean(data), error: null };
