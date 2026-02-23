@@ -7,6 +7,7 @@ type ButtonProps = {
   onClick?: MouseEventHandler<HTMLButtonElement>;
   variant?: 'solid' | 'ghost';
   style?: CSSProperties;
+  type?: 'button' | 'submit' | 'reset';
 };
 
 const baseStyle: CSSProperties = {
@@ -33,7 +34,7 @@ const variants: Record<NonNullable<ButtonProps['variant']>, CSSProperties> = {
   }
 };
 
-export function Button({ children, href, onClick, variant = 'solid', style }: ButtonProps) {
+export function Button({ children, href, onClick, variant = 'solid', style, type = 'button' }: ButtonProps) {
   const mergedStyle = { ...baseStyle, ...variants[variant], ...style };
 
   if (href) {
@@ -45,7 +46,7 @@ export function Button({ children, href, onClick, variant = 'solid', style }: Bu
   }
 
   return (
-    <button type="button" onClick={onClick} style={mergedStyle}>
+    <button type={type} onClick={onClick} style={mergedStyle}>
       {children}
     </button>
   );

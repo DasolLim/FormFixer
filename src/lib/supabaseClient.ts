@@ -1,9 +1,9 @@
 type SupabaseClientLike = {
   auth: {
     getUser: () => Promise<{ data: { user: { id: string; email?: string } | null } }>;
-    signUp: (args: { email: string; password: string }) => Promise<{ error: { message: string } | null }>;
+    signUp: (args: { email: string; password: string }) => Promise<{ data: { user: { id: string; email?: string } | null; session: unknown | null }; error: { message: string } | null }>;
     signInWithPassword: (args: { email: string; password: string }) => Promise<{ error: { message: string } | null }>;
-    signOut: () => Promise<void>;
+    signOut: () => Promise<{ error: { message: string } | null }>;
     onAuthStateChange: (callback: (event: string, session: { user?: { id: string } } | null) => void) => { data: { subscription: { unsubscribe: () => void } } };
   };
   from: (table: string) => any;

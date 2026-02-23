@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/Button';
 
@@ -17,45 +18,63 @@ const links = [
 ];
 
 export function Navbar() {
+  const router = useRouter();
   const [isAuthed, setIsAuthed] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
   async function loadUnreadCount(nextUserId: string) {
     const supabase = await getSupabaseClient();
-    const { data } = await supabase.from('notifications').select('id').eq('user_id', nextUserId).is('read_at', null);
-    setUnreadCount((data ?? []).length);
+    const { data, error } = await supabase.from('notifications').select('id').eq('user_id', nextUserId).is('read_at', null);
+    if (!error) setUnreadCount((data ?? []).length);
   }
 
   useEffect(() => {
+    let active = true;
     let unsub: (() => void) | null = null;
-    getSupabaseClient().then((supabase) => {
-      supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
-        setIsAuthed(Boolean(data.user));
-        setUserId(data.user?.id ?? null);
-        if (data.user) await loadUnreadCount(data.user.id);
-      });
 
-      const { data } = supabase.auth.onAuthStateChange(async (_event: string, session: { user?: { id: string } } | null) => {
-        const nextId = session?.user?.id ?? null;
-        setIsAuthed(Boolean(nextId));
-        setUserId(nextId);
-        if (nextId) await loadUnreadCount(nextId);
-        else setUnreadCount(0);
-      });
+    getSupabaseClient()
+      .then((supabase) => {
+        supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
+          if (!active) return;
+          setIsAuthed(Boolean(data.user));
+          setUserId(data.user?.id ?? null);
+          if (data.user) await loadUnreadCount(data.user.id);
+        });
 
-      unsub = () => data.subscription.unsubscribe();
-    });
+        const { data } = supabase.auth.onAuthStateChange(async (_event: string, session: { user?: { id: string } } | null) => {
+          if (!active) return;
+          const nextId = session?.user?.id ?? null;
+          setIsAuthed(Boolean(nextId));
+          setUserId(nextId);
+          if (nextId) await loadUnreadCount(nextId);
+          else setUnreadCount(0);
+        });
+
+        unsub = () => data.subscription.unsubscribe();
+      })
+      .catch(() => {
+        if (!active) return;
+        setIsAuthed(false);
+        setUserId(null);
+        setUnreadCount(0);
+      });
 
     return () => {
+      active = false;
       if (unsub) unsub();
     };
   }, []);
 
   async function handleLogout() {
     const supabase = await getSupabaseClient();
-    await supabase.auth.signOut();
-    window.location.href = '/';
+    const { error } = await supabase.auth.signOut();
+    if (error) return;
+    setIsAuthed(false);
+    setUserId(null);
+    setUnreadCount(0);
+    router.push('/login');
+    router.refresh();
   }
 
   return (
