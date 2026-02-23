@@ -5,6 +5,8 @@ export type ProfileRow = {
   email: string | null;
   username: string | null;
   privacy_mode: PrivacyMode;
+  following_count: number;
+  follower_count: number;
 };
 
 export type FriendRequestRow = {
