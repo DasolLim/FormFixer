@@ -271,9 +271,9 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
       .eq('requester_id', currentUserId)
       .eq('target_user_id', targetUserId)
       .eq('status', 'pending')
-      .maybeSingle();
+      .limit(1);
     if (!outgoing.error) {
-      base.isRequested = Boolean(outgoing.data);
+      base.isRequested = Boolean((outgoing.data ?? [])[0]);
     } else if (isMissingSchemaError(outgoing.error)) {
       const legacyOutgoing = await supabase
         .from('friend_requests')
@@ -281,8 +281,8 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
         .eq('requester_id', currentUserId)
         .eq('receiver_id', targetUserId)
         .eq('status', 'pending')
-        .maybeSingle();
-      if (!legacyOutgoing.error) base.isRequested = Boolean(legacyOutgoing.data);
+        .limit(1);
+      if (!legacyOutgoing.error) base.isRequested = Boolean((legacyOutgoing.data ?? [])[0]);
     }
 
     const incoming = await supabase
@@ -291,9 +291,9 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
       .eq('requester_id', targetUserId)
       .eq('target_user_id', currentUserId)
       .eq('status', 'pending')
-      .maybeSingle();
+      .limit(1);
     if (!incoming.error) {
-      base.requestedByThem = Boolean(incoming.data);
+      base.requestedByThem = Boolean((incoming.data ?? [])[0]);
     } else if (isMissingSchemaError(incoming.error)) {
       const legacyIncoming = await supabase
         .from('friend_requests')
@@ -301,8 +301,8 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
         .eq('requester_id', targetUserId)
         .eq('receiver_id', currentUserId)
         .eq('status', 'pending')
-        .maybeSingle();
-      if (!legacyIncoming.error) base.requestedByThem = Boolean(legacyIncoming.data);
+        .limit(1);
+      if (!legacyIncoming.error) base.requestedByThem = Boolean((legacyIncoming.data ?? [])[0]);
     }
 
     return { data: base, error: null };
@@ -318,8 +318,8 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
     .eq('requester_id', currentUserId)
     .eq('receiver_id', targetUserId)
     .eq('status', 'pending')
-    .maybeSingle();
-  if (!legacyOutgoing.error) base.isRequested = Boolean(legacyOutgoing.data);
+    .limit(1);
+  if (!legacyOutgoing.error) base.isRequested = Boolean((legacyOutgoing.data ?? [])[0]);
 
   const legacyIncoming = await supabase
     .from('friend_requests')
@@ -327,8 +327,8 @@ export async function resolveRelationshipState(currentUserId: string, targetUser
     .eq('requester_id', targetUserId)
     .eq('receiver_id', currentUserId)
     .eq('status', 'pending')
-    .maybeSingle();
-  if (!legacyIncoming.error) base.requestedByThem = Boolean(legacyIncoming.data);
+    .limit(1);
+  if (!legacyIncoming.error) base.requestedByThem = Boolean((legacyIncoming.data ?? [])[0]);
 
   return { data: base, error: null };
 }
@@ -363,21 +363,24 @@ export async function sendFriendAction(payload: {
       message: 'You have a new follower.'
     });
 
-    return { error: notifError };
+    if (notifError) return { error: null };
+    return { error: null };
   }
 
   const existingRequest = await supabase
     .from('follow_requests')
-    .select('id,status')
+    .select('id,status,created_at')
     .eq('requester_id', payload.currentUserId)
     .eq('target_user_id', payload.targetProfile.id)
-    .maybeSingle();
+    .order('created_at', { ascending: false })
+    .limit(1);
 
   if (existingRequest.error && !isMissingSchemaError(existingRequest.error)) return { error: existingRequest.error };
 
-  let requestId: string | undefined = existingRequest.data?.id;
+  const existingRequestRow = (existingRequest.data ?? [])[0] as { id: string; status: string } | undefined;
+  let requestId: string | undefined = existingRequestRow?.id;
 
-  if (!existingRequest.data) {
+  if (!existingRequestRow) {
     const created = await supabase
       .from('follow_requests')
       .insert({ requester_id: payload.currentUserId, target_user_id: payload.targetProfile.id, status: 'pending' })
@@ -395,10 +398,10 @@ export async function sendFriendAction(payload: {
     } else {
       requestId = created.data.id;
     }
-  } else if (existingRequest.data.status === 'pending') {
+  } else if (existingRequestRow.status === 'pending') {
     return { error: { message: 'Follow request already pending.' } };
-  } else if (existingRequest.data.status !== 'accepted') {
-    const reopened = await supabase.from('follow_requests').update({ status: 'pending' }).eq('id', existingRequest.data.id).select('id').single();
+  } else if (existingRequestRow.status !== 'accepted') {
+    const reopened = await supabase.from('follow_requests').update({ status: 'pending' }).eq('id', existingRequestRow.id).select('id').single();
     if (reopened.error) return { error: reopened.error };
     requestId = reopened.data.id;
   }
@@ -411,7 +414,8 @@ export async function sendFriendAction(payload: {
     data: { follow_request_id: requestId }
   });
 
-  return { error: notifError };
+  if (notifError) return { error: null };
+  return { error: null };
 }
 
 export async function respondToFriendRequest(payload: { currentUserId: string; request: FriendRequestRow; accept: boolean }) {
