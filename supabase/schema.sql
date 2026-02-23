@@ -171,7 +171,24 @@ for update using (auth.uid() = requester_id or auth.uid() = receiver_id)
 with check (auth.uid() = requester_id or auth.uid() = receiver_id);
 
 create policy "friendships_select_own" on public.friendships for select using (auth.uid() = user_id);
-create policy "friendships_insert_own" on public.friendships for insert with check (auth.uid() = user_id and user_id <> friend_id);
+create policy "friendships_insert_own" on public.friendships
+for insert
+with check (
+  user_id <> friend_id
+  and (
+    auth.uid() = user_id
+    or (
+      auth.uid() = friend_id
+      and exists (
+        select 1
+        from public.friend_requests fr
+        where fr.requester_id = public.friendships.user_id
+          and fr.receiver_id = auth.uid()
+          and fr.status = 'accepted'
+      )
+    )
+  )
+);
 create policy "friendships_delete_own" on public.friendships for delete using (auth.uid() = user_id);
 
 create policy "notifications_select_own" on public.notifications for select using (auth.uid() = user_id);

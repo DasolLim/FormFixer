@@ -9,6 +9,10 @@ function isMissingColumnError(error: { message?: string } | null) {
   return Boolean(error?.message?.toLowerCase().includes('column') && error?.message?.toLowerCase().includes('does not exist'));
 }
 
+function isDuplicateKeyError(error: { code?: string; message?: string } | null) {
+  return error?.code === '23505' || Boolean(error?.message?.toLowerCase().includes('duplicate key'));
+}
+
 async function ensureProfileRow(userId: string, email?: string | null) {
   const supabase = await getSupabaseClient();
   const { error } = await supabase.from('profiles').upsert(
@@ -181,36 +185,63 @@ export async function sendFriendAction(payload: {
   }
 
   if (payload.targetProfile.privacy_mode === 'public') {
-    const { error: friendErrA } = await supabase.from('friendships').insert({ user_id: payload.currentUserId, friend_id: payload.targetProfile.id });
-    if (friendErrA) return { error: friendErrA };
-
-    const { error: friendErrB } = await supabase.from('friendships').insert({ user_id: payload.targetProfile.id, friend_id: payload.currentUserId });
-    if (friendErrB) return { error: friendErrB };
+    const { error: followError } = await supabase.from('friendships').insert({ user_id: payload.currentUserId, friend_id: payload.targetProfile.id });
+    if (followError && !isDuplicateKeyError(followError)) return { error: followError };
 
     const { error: notifError } = await supabase.from('notifications').insert({
       user_id: payload.targetProfile.id,
       actor_id: payload.currentUserId,
       type: 'friend_request_accepted',
-      message: 'You have a new friend connection.'
+      message: 'You have a new follower.'
     });
 
     return { error: notifError };
   }
 
-  const { data: inserted, error } = await supabase
+  const existingRequest = await supabase
     .from('friend_requests')
-    .insert({ requester_id: payload.currentUserId, receiver_id: payload.targetProfile.id, status: 'pending' })
-    .select('id')
-    .single();
+    .select('id,status')
+    .eq('requester_id', payload.currentUserId)
+    .eq('receiver_id', payload.targetProfile.id)
+    .maybeSingle();
 
-  if (error) return { error };
+  if (existingRequest.error) return { error: existingRequest.error };
+
+  let requestId = existingRequest.data?.id as string | undefined;
+
+  if (!existingRequest.data) {
+    const created = await supabase
+      .from('friend_requests')
+      .insert({ requester_id: payload.currentUserId, receiver_id: payload.targetProfile.id, status: 'pending', responded_at: null })
+      .select('id')
+      .single();
+
+    if (created.error) return { error: created.error };
+    requestId = created.data.id;
+  } else if (existingRequest.data.status === 'pending') {
+    return { error: { message: 'Friend request already pending.' } };
+  } else if (existingRequest.data.status !== 'accepted') {
+    const reopened = await supabase
+      .from('friend_requests')
+      .update({ status: 'pending', responded_at: null })
+      .eq('id', existingRequest.data.id)
+      .select('id')
+      .single();
+
+    if (reopened.error) return { error: reopened.error };
+    requestId = reopened.data.id;
+  }
+
+  if (existingRequest.data?.status === 'accepted') {
+    return { error: { message: 'Already friends with this user.' } };
+  }
 
   const { error: notifError } = await supabase.from('notifications').insert({
     user_id: payload.targetProfile.id,
     actor_id: payload.currentUserId,
     type: 'friend_request_received',
     message: 'You have a new friend request.',
-    data: { friend_request_id: inserted.id }
+    data: { friend_request_id: requestId }
   });
 
   return { error: notifError };
@@ -220,20 +251,24 @@ export async function respondToFriendRequest(payload: { currentUserId: string; r
   const supabase = await getSupabaseClient();
   const nextStatus = payload.accept ? 'accepted' : 'rejected';
 
-  const { error: updateError } = await supabase
+  const { data: updatedRow, error: updateError } = await supabase
     .from('friend_requests')
     .update({ status: nextStatus, responded_at: new Date().toISOString() })
     .eq('id', payload.request.id)
-    .eq('receiver_id', payload.currentUserId);
+    .eq('receiver_id', payload.currentUserId)
+    .eq('status', 'pending')
+    .select('id,requester_id,receiver_id')
+    .maybeSingle();
 
   if (updateError) return { error: updateError };
+  if (!updatedRow) return { error: { message: 'This request was already handled.' } };
 
   if (payload.accept) {
-    const { error: edgeErrorA } = await supabase.from('friendships').insert({ user_id: payload.currentUserId, friend_id: payload.request.requester_id });
-    if (edgeErrorA) return { error: edgeErrorA };
+    const { error: edgeErrorA } = await supabase.from('friendships').insert({ user_id: payload.request.requester_id, friend_id: payload.currentUserId });
+    if (edgeErrorA && !isDuplicateKeyError(edgeErrorA)) return { error: edgeErrorA };
 
-    const { error: edgeErrorB } = await supabase.from('friendships').insert({ user_id: payload.request.requester_id, friend_id: payload.currentUserId });
-    if (edgeErrorB) return { error: edgeErrorB };
+    const { error: edgeErrorB } = await supabase.from('friendships').insert({ user_id: payload.currentUserId, friend_id: payload.request.requester_id });
+    if (edgeErrorB && !isDuplicateKeyError(edgeErrorB)) return { error: edgeErrorB };
 
     const { error: notifError } = await supabase.from('notifications').insert({
       user_id: payload.request.requester_id,
