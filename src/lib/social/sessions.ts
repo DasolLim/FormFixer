@@ -36,6 +36,18 @@ function normalizeProfileRow(row: any): ProfileRow {
   };
 }
 
+
+async function fetchProfilesCompatByIds(supabase: any, ids: string[]) {
+  const rich = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode,following_count,follower_count').in('id', ids);
+  if (!rich.error) return { data: (rich.data ?? []).map(normalizeProfileRow), error: null };
+
+  const standard = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode').in('id', ids);
+  if (!standard.error) return { data: (standard.data ?? []).map(normalizeProfileRow), error: null };
+
+  const legacy = await supabase.from('profiles').select('id,email,username,privacy_mode').in('id', ids);
+  return { data: (legacy.data ?? []).map(normalizeProfileRow), error: legacy.error };
+}
+
 async function ensureProfileRow(userId: string, email?: string | null) {
   const supabase = await getSupabaseClient();
   const { error } = await supabase.from('profiles').upsert({ id: userId, ...(email ? { email } : {}) }, { onConflict: 'id' });
@@ -167,10 +179,10 @@ export async function fetchFriends(userId: string) {
     const ids = rows.map((row) => row.following_id);
     if (!ids.length) return { data: [] as Array<FriendshipRow & { profile: ProfileRow | null }>, error: null };
 
-    const profiles = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode,following_count,follower_count').in('id', ids);
+    const profiles = await fetchProfilesCompatByIds(supabase, ids);
     if (profiles.error) return { data: [] as Array<FriendshipRow & { profile: ProfileRow | null }>, error: profiles.error };
 
-    const map = new Map((profiles.data ?? []).map((profile: any) => [profile.id, normalizeProfileRow(profile)]));
+    const map = new Map((profiles.data ?? []).map((profile: any) => [profile.id, profile]));
 
     return {
       data: rows.map((row) => ({ id: row.id, user_id: row.follower_id, friend_id: row.following_id, created_at: row.created_at, profile: map.get(row.following_id) ?? null })),
@@ -393,8 +405,39 @@ export async function sendFriendAction(payload: {
         .insert({ requester_id: payload.currentUserId, receiver_id: payload.targetProfile.id, status: 'pending', responded_at: null })
         .select('id')
         .single();
-      if (legacyCreate.error) return { error: legacyCreate.error };
-      requestId = legacyCreate.data.id;
+
+      if (legacyCreate.error && !isDuplicateKeyError(legacyCreate.error)) return { error: legacyCreate.error };
+
+      if (legacyCreate.error && isDuplicateKeyError(legacyCreate.error)) {
+        const legacyExisting = await supabase
+          .from('friend_requests')
+          .select('id,status,created_at')
+          .eq('requester_id', payload.currentUserId)
+          .eq('receiver_id', payload.targetProfile.id)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (legacyExisting.error) return { error: legacyExisting.error };
+        const row = (legacyExisting.data ?? [])[0] as { id: string; status: string } | undefined;
+        if (!row) return { error: { message: 'Unable to create follow request.' } };
+        requestId = row.id;
+
+        if (row.status === 'pending') return { error: { message: 'Follow request already pending.' } };
+        if (row.status !== 'accepted') {
+          const reopenedLegacy = await supabase
+            .from('friend_requests')
+            .update({ status: 'pending', responded_at: null })
+            .eq('id', row.id)
+            .select('id')
+            .single();
+          if (reopenedLegacy.error) return { error: reopenedLegacy.error };
+          requestId = reopenedLegacy.data.id;
+        } else {
+          return { error: { message: 'Already following this user.' } };
+        }
+      } else {
+        requestId = legacyCreate.data.id;
+      }
     } else {
       requestId = created.data.id;
     }
@@ -517,11 +560,8 @@ export async function fetchProfilesByIds(ids: string[]) {
   const supabase = await getSupabaseClient();
   if (!ids.length) return { data: [] as ProfileRow[], error: null };
 
-  const primary = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode,following_count,follower_count').in('id', ids);
-  if (!primary.error) return { data: (primary.data ?? []).map(normalizeProfileRow), error: null };
-
-  const fallback = await supabase.from('profiles').select('id,email,username,privacy_mode').in('id', ids);
-  return { data: (fallback.data ?? []).map(normalizeProfileRow), error: fallback.error };
+  const result = await fetchProfilesCompatByIds(supabase, ids);
+  return result;
 }
 
 export async function areFriends(userId: string, friendId: string) {
