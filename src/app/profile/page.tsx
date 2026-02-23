@@ -21,8 +21,8 @@ export default function ProfilePage() {
   const [following, setFollowing] = useState(0);
   const [friends, setFriends] = useState(0);
 
-  async function loadProfileData(currentUserId: string) {
-    const [profileResult, countResult] = await Promise.all([fetchMyProfile(currentUserId), fetchFriendCounts(currentUserId)]);
+  async function loadProfileData(currentUserId: string, currentUserEmail: string | null) {
+    const [profileResult, countResult] = await Promise.all([fetchMyProfile(currentUserId, currentUserEmail), fetchFriendCounts(currentUserId)]);
 
     if (!profileResult.error && profileResult.data) {
       setUsername(profileResult.data.username ?? '');
@@ -45,7 +45,7 @@ export default function ProfilePage() {
         setUserId(data.user.id);
         setEmail(data.user.email ?? '');
         setTier(await fetchPlanTier(data.user.id));
-        await loadProfileData(data.user.id);
+        await loadProfileData(data.user.id, data.user.email ?? null);
       })
     );
   }, []);
@@ -61,7 +61,7 @@ export default function ProfilePage() {
     }
 
     setMessage('Profile settings updated.');
-    await loadProfileData(userId);
+    await loadProfileData(userId, email || null);
   }
 
   return (

@@ -9,9 +9,30 @@ function isMissingColumnError(error: { message?: string } | null) {
   return Boolean(error?.message?.toLowerCase().includes('column') && error?.message?.toLowerCase().includes('does not exist'));
 }
 
-export async function fetchMyProfile(userId: string) {
+async function ensureProfileRow(userId: string, email?: string | null) {
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from('profiles').upsert(
+    {
+      id: userId,
+      ...(email ? { email } : {})
+    },
+    { onConflict: 'id' }
+  );
+
+  return { error };
+}
+
+export async function fetchMyProfile(userId: string, email?: string | null) {
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase.from('profiles').select('id,email,username,privacy_mode').eq('id', userId).maybeSingle();
+
+  if (!error && !data) {
+    const insertResult = await ensureProfileRow(userId, email);
+    if (insertResult.error) return { data: null as ProfileRow | null, error: insertResult.error };
+
+    const reload = await supabase.from('profiles').select('id,email,username,privacy_mode').eq('id', userId).maybeSingle();
+    return { data: (reload.data ?? null) as ProfileRow | null, error: reload.error };
+  }
 
   if (isMissingColumnError(error)) {
     const fallback = await supabase.from('profiles').select('id,email').eq('id', userId).maybeSingle();
@@ -54,7 +75,9 @@ export async function updateMyProfileSettings(payload: { userId: string; usernam
   if (findError) return { error: findError };
   if (existing) return { error: { message: 'That username is already taken.' } };
 
-  const { error } = await supabase.from('profiles').update({ username: normalized, privacy_mode: payload.privacyMode }).eq('id', payload.userId);
+  const { error } = await supabase
+    .from('profiles')
+    .upsert({ id: payload.userId, username: normalized, privacy_mode: payload.privacyMode }, { onConflict: 'id' });
 
   if (isMissingColumnError(error)) {
     return { error: { message: 'Database is missing social columns. Run supabase/schema.sql in Supabase SQL editor.' } };
