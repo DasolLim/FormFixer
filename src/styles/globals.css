@@ -1,0 +1,106 @@
+:root {
+  --bg: #070b14;
+  --surface: #121a2b;
+  --surface-soft: #17213a;
+  --text: #f4f7ff;
+  --muted: #9cb0d0;
+  --primary: #4de2c5;
+  --primary-strong: #25c5a8;
+  --accent: #4f7cff;
+  --danger: #ff6a88;
+  --border: #243456;
+  --radius: 16px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at top, #131f38 0%, var(--bg) 40%);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  min-height: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+}
+
+.hero-banner {
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  overflow: hidden;
+  background:
+    linear-gradient(120deg, rgba(7, 11, 20, 0.78), rgba(7, 11, 20, 0.6)),
+    url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=80') center/cover;
+  padding: 28px;
+  margin-bottom: 20px;
+}
+
+.hero-chip {
+  display: inline-flex;
+  border-radius: 999px;
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #d8e6ff;
+  margin-right: 8px;
+  margin-bottom: 8px;
+  background: rgba(14, 23, 42, 0.5);
+}
+
+.calendar-shell {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  padding: 8px;
+  background: #0d1629;
+}
+
+.calendar-shell .fc {
+  color: var(--text);
+}
+
+.calendar-shell .fc-toolbar-title {
+  font-size: 1rem;
+}
+
+.calendar-shell .fc-theme-standard td,
+.calendar-shell .fc-theme-standard th,
+.calendar-shell .fc-theme-standard .fc-scrollgrid {
+  border-color: #22365d;
+}
+
+.calendar-shell .fc-col-header-cell {
+  background: #12203a;
+}
+
+.calendar-shell .fc-daygrid-day-number,
+.calendar-shell .fc-col-header-cell-cushion {
+  color: #cfe0ff;
+}
+
+.calendar-shell .fc-button {
+  background: #1b2d4e !important;
+  border-color: #2d4672 !important;
+}
+
+.calendar-shell .fc-button-primary:not(:disabled).fc-button-active,
+.calendar-shell .fc-button-primary:not(:disabled):active {
+  background: var(--accent) !important;
+  border-color: var(--accent) !important;
+}
+
+.calendar-shell .fc-event {
+  background: linear-gradient(90deg, var(--primary), var(--accent));
+  border: none;
+  color: #061226;
+  font-weight: 600;
+}
