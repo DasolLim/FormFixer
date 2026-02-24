@@ -1,19 +1,21 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Section } from '@/components/layout/Section';
 import { clearCanvas, drawPoseOverlay, resizeCanvasToVideo } from '@/lib/pose/draw';
-import { smoothLandmarks, type Landmark } from '@/lib/pose/math';
-import { SQUAT_THRESHOLDS } from '@/lib/pose/constants';
-import { analyzeExercise, initialExerciseState, type ExerciseState } from '@/lib/workouts/analysis';
-import type { ExerciseType } from '@/lib/workouts/types';
-import { saveWorkoutSession } from '@/lib/workouts/sessions';
+import type { Landmark } from '@/lib/pose/math';
+import type { MediaPipePoseResultLike } from '@/features/pose/pose-types';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import { saveWorkoutSession } from '@/lib/workouts/sessions';
+import { adaptPoseLandmarkerResult } from '@/features/pose/pose-landmarker-adapter';
+import { CalibrationGate } from '@/features/form-engine/calibration-gate';
+import { DEFAULT_SQUAT_ENGINE_CONFIG, SquatEngine } from '@/features/form-engine/engines/squat-engine';
+import { createWorkoutSessionState, resetWorkoutSessionState } from '@/features/workout/workout-session-store';
 
 type PoseLandmarkerLike = {
-  detectForVideo: (video: HTMLVideoElement, timestampMs: number) => { landmarks?: Landmark[][] };
+  detectForVideo: (video: HTMLVideoElement, timestampMs: number) => MediaPipePoseResultLike;
 };
 
 type VisionModule = {
@@ -23,33 +25,36 @@ type VisionModule = {
   };
 };
 
-const EXERCISE_TIPS: Record<ExerciseType, string> = {
-  squat: 'Face camera. Keep full body visible. Camera at waist/chest height.',
-  pushup: 'Place camera side/front at floor level. Keep whole body in frame.',
-  lunge: 'Show full body. Step back enough so both legs stay visible.'
-};
-
 export default function CameraPage() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const poseLandmarkerRef = useRef<PoseLandmarkerLike | null>(null);
   const rafRef = useRef<number | null>(null);
-  const previousLandmarksRef = useRef<Landmark[] | null>(null);
-  const stateRef = useRef<ExerciseState>({ ...initialExerciseState });
-  const frameRef = useRef(0);
-  const cueFramesRef = useRef(0);
-  const rawCueRef = useRef('Stand where your full body is visible');
+  const sessionRef = useRef(createWorkoutSessionState());
 
-  const [exercise, setExercise] = useState<ExerciseType>('squat');
   const [userId, setUserId] = useState<string | null>(null);
   const [isCameraRunning, setIsCameraRunning] = useState(false);
   const [repCount, setRepCount] = useState(0);
-  const [phase, setPhase] = useState('top');
+  const [phase, setPhase] = useState('NOT_READY');
   const [cue, setCue] = useState('Press Start Camera to begin');
+  const [secondaryCue, setSecondaryCue] = useState('');
   const [angle, setAngle] = useState(180);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
+
+  const calibrationGate = useMemo(
+    () =>
+      new CalibrationGate({
+        minVisibility: DEFAULT_SQUAT_ENGINE_CONFIG.confidence.minVisibility,
+        requiredStableFrames: 12,
+        maxMotionPerFrame: 0.015,
+        minShoulderHipHeightDelta: 0.04,
+        orientation: 'auto'
+      }),
+    []
+  );
+  const squatEngine = useMemo(() => new SquatEngine(DEFAULT_SQUAT_ENGINE_CONFIG), []);
 
   useEffect(() => {
     getSupabaseClient().then((supabase) =>
@@ -119,22 +124,15 @@ export default function CameraPage() {
   }
 
   function resetSession() {
-    stateRef.current = { ...initialExerciseState };
-    frameRef.current = 0;
+    resetWorkoutSessionState(sessionRef.current);
+    calibrationGate.reset();
+    squatEngine.reset();
     setRepCount(0);
-    setPhase('top');
+    setPhase('NOT_READY');
     setAngle(180);
-    setCue('Session reset');
+    setCue('Session reset. Stand upright and hold still to calibrate.');
+    setSecondaryCue('');
     setSaveMessage('');
-  }
-
-  function updateStableCue(next: string) {
-    if (next === rawCueRef.current) cueFramesRef.current += 1;
-    else {
-      rawCueRef.current = next;
-      cueFramesRef.current = 1;
-    }
-    if (cueFramesRef.current >= SQUAT_THRESHOLDS.stableCueFrames) setCue(next);
   }
 
   function runDetectionLoop(pose: PoseLandmarkerLike) {
@@ -146,22 +144,24 @@ export default function CameraPage() {
         return;
       }
 
-      frameRef.current += 1;
       resizeCanvasToVideo(canvas, video);
 
-      const result = pose.detectForVideo(video, performance.now());
-      const landmarks = result.landmarks?.[0];
-      if (landmarks) {
-        const smoothed = smoothLandmarks(landmarks, previousLandmarksRef.current, SQUAT_THRESHOLDS.smoothingAlpha);
-        previousLandmarksRef.current = smoothed;
-        drawPoseOverlay(canvas, smoothed);
+      const frameTsMs = video.currentTime * 1000;
+      const normalized = adaptPoseLandmarkerResult(pose.detectForVideo(video, frameTsMs), frameTsMs);
+      const calibration = calibrationGate.update(normalized);
+      const output = squatEngine.update(normalized, calibration);
 
-        const analysis = analyzeExercise(exercise, smoothed, stateRef.current, frameRef.current);
-        setRepCount(analysis.reps);
-        setPhase(analysis.phase);
-        setAngle(Number(analysis.primaryAngle.toFixed(1)));
-        updateStableCue(analysis.cue);
-      }
+      sessionRef.current.calibration = calibration;
+      sessionRef.current.output = output;
+
+      const drawable = normalized.landmarks.map((p) => ({ x: p?.x ?? 0, y: p?.y ?? 0, z: p?.z, visibility: p?.visibility })) as Landmark[];
+      drawPoseOverlay(canvas, drawable);
+
+      setRepCount(output.state.repCount);
+      setPhase(output.state.phase);
+      setCue(output.primaryCue);
+      setSecondaryCue(output.secondaryCue ?? '');
+      setAngle(Math.round(output.metrics.smoothedKneeAngle ?? output.metrics.kneeAngle ?? 180));
 
       rafRef.current = requestAnimationFrame(tick);
     };
@@ -170,66 +170,61 @@ export default function CameraPage() {
   }
 
   async function handleSaveSession() {
-    setSaveMessage('');
-    if (!userId) {
-      setSaveMessage('Login to save workout sessions.');
+    if (!userId || !sessionRef.current.output) {
+      setSaveMessage('Login and run at least one rep before saving.');
       return;
     }
 
-    const formScore = Math.min(100, Math.max(45, Math.round(100 - Math.abs(angle - 100) * 0.4)));
-    const formSummary = `${exercise} session completed. Final cue: ${cue}`;
+    const output = sessionRef.current.output;
 
-    const { error: saveError } = await saveWorkoutSession({
+    const payload = {
       userId,
-      exerciseType: exercise,
-      repCount,
-      formScore,
-      formSummary
-    });
+      exerciseType: 'squat' as const,
+      repCount: output.state.repCount,
+      formScore: Math.max(1, Math.min(100, 100 - output.issues.filter((issue) => issue.code !== 'status').length * 10)),
+      formSummary: `${output.primaryCue}${output.secondaryCue ? ` | ${output.secondaryCue}` : ''}`
+    };
 
-    setSaveMessage(saveError ? `Save failed: ${saveError.message}` : 'Session saved to history.');
+    const { error: saveError } = await saveWorkoutSession(payload);
+    if (saveError) {
+      setSaveMessage(saveError.message);
+      return;
+    }
+
+    setSaveMessage('Workout session saved.');
   }
 
   return (
-    <Section title="Camera / Form Fixer" subtitle="Live workout tracking" description="Pick an exercise, start camera, complete reps, then save session.">
-      <Card>
-        <p style={{ color: 'var(--muted)', marginTop: 0 }}>{EXERCISE_TIPS[exercise]}</p>
+    <Section title="Camera Trainer" subtitle="Real-time squat form engine" description="Calibrate, track reps, and get live feedback cues.">
+      {error ? <p style={{ color: 'var(--danger)', marginTop: 0 }}>{error}</p> : null}
+      <Card title="Live Camera">
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ position: 'relative', width: '100%', maxWidth: 720 }}>
+            <video ref={videoRef} style={{ width: '100%', borderRadius: 12, background: '#020817' }} playsInline muted />
+            <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+          </div>
 
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            Exercise:
-            <select
-              value={exercise}
-              onChange={(e) => setExercise(e.target.value as ExerciseType)}
-              style={{ marginLeft: 10, padding: 8, borderRadius: 8, background: '#0d1629', color: 'var(--text)', border: '1px solid var(--border)' }}
-            >
-              <option value="squat">Squat</option>
-              <option value="pushup">Push-up</option>
-              <option value="lunge">Lunge</option>
-            </select>
-          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {!isCameraRunning ? <Button onClick={startCamera}>Start Camera</Button> : <Button onClick={stopCamera}>Stop Camera</Button>}
+            <Button variant="ghost" onClick={resetSession}>
+              Reset Session
+            </Button>
+            <Button variant="ghost" onClick={handleSaveSession}>
+              Save Session
+            </Button>
+          </div>
+
+          {saveMessage ? <p style={{ color: 'var(--muted)', margin: 0 }}>{saveMessage}</p> : null}
         </div>
+      </Card>
 
-        <div style={{ position: 'relative', width: '100%', maxWidth: 920, aspectRatio: '16 / 9', borderRadius: 14, border: '1px solid var(--border)', overflow: 'hidden', background: '#0b1325' }}>
-          <video ref={videoRef} style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)' }} muted playsInline />
-          <canvas ref={canvasRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', transform: 'scaleX(-1)' }} />
-        </div>
-
-        <div style={{ display: 'flex', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
-          <Button onClick={startCamera}>Start Camera</Button>
-          <Button onClick={stopCamera} variant="ghost">Stop Camera</Button>
-          <Button onClick={resetSession} variant="ghost">Reset</Button>
-          <Button onClick={handleSaveSession} variant="ghost">Save Session</Button>
-        </div>
-
-        {error ? <p style={{ color: 'var(--danger)' }}>{error}</p> : null}
-        {saveMessage ? <p style={{ color: 'var(--muted)' }}>{saveMessage}</p> : null}
-
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12 }}>
+      <Card title="Live Metrics" description="RepDetect-inspired pipeline with explicit rule engine.">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
           <Card title="Reps" description={`${repCount}`} />
           <Card title="Phase" description={phase} />
-          <Card title="Primary Angle" description={`${angle}°`} />
-          <Card title="Cue" description={cue} />
+          <Card title="Knee Angle" description={`${angle}°`} />
+          <Card title="Primary Cue" description={cue} />
+          <Card title="Secondary Cue" description={secondaryCue || '—'} />
           <Card title="Camera" description={isCameraRunning ? 'Running' : 'Stopped'} />
         </div>
       </Card>
