@@ -114,6 +114,42 @@ export async function updateMyProfileSettings(payload: { userId: string; usernam
   return { error: primaryUpsert.error };
 }
 
+
+export async function fetchSuggestedProfiles(currentUserId: string, limit = 3) {
+  const supabase = await getSupabaseClient();
+
+  const primary = await supabase
+    .from('profiles')
+    .select('id,email,username,is_private,privacy_mode,following_count,follower_count,created_at')
+    .neq('id', currentUserId)
+    .order('created_at', { ascending: false })
+    .limit(limit * 3);
+
+  if (!primary.error) {
+    const rows = (primary.data ?? []).map(normalizeProfileRow);
+    const suggestions: ProfileRow[] = [];
+
+    for (const row of rows) {
+      const relation = await resolveRelationshipState(currentUserId, row.id, isPrivateProfile(row));
+      if (relation.error) continue;
+      if (!relation.data.isFollowing && !relation.data.isRequested && !relation.data.isSelf) {
+        suggestions.push(row);
+      }
+      if (suggestions.length >= limit) break;
+    }
+
+    return { data: suggestions, error: null };
+  }
+
+  const fallback = await supabase
+    .from('profiles')
+    .select('id,email,username,privacy_mode')
+    .neq('id', currentUserId)
+    .limit(limit);
+
+  return { data: (fallback.data ?? []).map(normalizeProfileRow), error: fallback.error };
+}
+
 export async function searchProfilesByUsername(currentUserId: string, query: string) {
   const supabase = await getSupabaseClient();
   const normalized = normalizeUsername(query);
