@@ -32,6 +32,7 @@ export default function CameraPage() {
   const poseLandmarkerRef = useRef<PoseLandmarkerLike | null>(null);
   const rafRef = useRef<number | null>(null);
   const sessionRef = useRef(createWorkoutSessionState());
+  const lastDetectTimestampRef = useRef(0);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [isCameraRunning, setIsCameraRunning] = useState(false);
@@ -103,6 +104,7 @@ export default function CameraPage() {
       await videoRef.current.play();
 
       streamRef.current = stream;
+      lastDetectTimestampRef.current = 0;
       setIsCameraRunning(true);
       runDetectionLoop(pose);
     } catch (e) {
@@ -120,6 +122,7 @@ export default function CameraPage() {
       videoRef.current.srcObject = null;
     }
     clearCanvas(canvasRef.current);
+    lastDetectTimestampRef.current = 0;
     setIsCameraRunning(false);
   }
 
@@ -146,24 +149,33 @@ export default function CameraPage() {
 
       resizeCanvasToVideo(canvas, video);
 
-      const frameTsMs = video.currentTime * 1000;
-      const normalized = adaptPoseLandmarkerResult(pose.detectForVideo(video, frameTsMs), frameTsMs);
-      const calibration = calibrationGate.update(normalized);
-      const output = squatEngine.update(normalized, calibration);
+      try {
+        // MediaPipe detectForVideo requires strictly monotonically increasing timestamps.
+        // Use performance.now() and guard monotonicity against same-frame jitter.
+        const candidateTs = performance.now();
+        const frameTsMs = Math.max(candidateTs, lastDetectTimestampRef.current + 0.001);
+        lastDetectTimestampRef.current = frameTsMs;
+        const normalized = adaptPoseLandmarkerResult(pose.detectForVideo(video, frameTsMs), frameTsMs);
+        const calibration = calibrationGate.update(normalized);
+        const output = squatEngine.update(normalized, calibration);
 
-      sessionRef.current.calibration = calibration;
-      sessionRef.current.output = output;
+        sessionRef.current.calibration = calibration;
+        sessionRef.current.output = output;
 
-      const drawable = normalized.landmarks.map((p) => ({ x: p?.x ?? 0, y: p?.y ?? 0, z: p?.z, visibility: p?.visibility })) as Landmark[];
-      drawPoseOverlay(canvas, drawable);
+        const drawable = normalized.landmarks.map((p) => ({ x: p?.x ?? 0, y: p?.y ?? 0, z: p?.z, visibility: p?.visibility })) as Landmark[];
+        drawPoseOverlay(canvas, drawable);
 
-      setRepCount(output.state.repCount);
-      setPhase(output.state.phase);
-      setCue(output.primaryCue);
-      setSecondaryCue(output.secondaryCue ?? '');
-      setAngle(Math.round(output.metrics.smoothedKneeAngle ?? output.metrics.kneeAngle ?? 180));
+        setRepCount(output.state.repCount);
+        setPhase(output.state.phase);
+        setCue(output.primaryCue);
+        setSecondaryCue(output.secondaryCue ?? '');
+        setAngle(Math.round(output.metrics.smoothedKneeAngle ?? output.metrics.kneeAngle ?? 180));
 
-      rafRef.current = requestAnimationFrame(tick);
+        rafRef.current = requestAnimationFrame(tick);
+      } catch (detectError) {
+        setError(detectError instanceof Error ? detectError.message : 'Pose detection failed.');
+        stopCamera();
+      }
     };
 
     rafRef.current = requestAnimationFrame(tick);
