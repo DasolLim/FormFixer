@@ -15,6 +15,8 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 let cachedClient: SupabaseClientLike | null = null;
 let cachedClientPromise: Promise<SupabaseClientLike> | null = null;
 
+const runWithoutNavigatorLock = async <T>(_name: string, _acquireTimeout: number, fn: () => Promise<T>): Promise<T> => fn();
+
 export async function getSupabaseClient(): Promise<SupabaseClientLike> {
   if (cachedClient) return cachedClient;
   if (cachedClientPromise) return cachedClientPromise;
@@ -28,7 +30,12 @@ export async function getSupabaseClient(): Promise<SupabaseClientLike> {
     const supabaseModule = await dynamicImporter('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
 
     cachedClient = supabaseModule.createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        lock: runWithoutNavigatorLock
+      }
     }) as SupabaseClientLike;
 
     return cachedClient;
