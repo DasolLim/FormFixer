@@ -4,30 +4,21 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import { Button } from '@/components/ui/Button';
 
 const links = [
   { href: '/', label: 'Home' },
-  { href: '/camera', label: 'Form Fixer' },
-  { href: '/programs', label: 'Programs' },
+  { href: '/camera', label: 'Camera' },
+  { href: '/programs', label: 'Program' },
   { href: '/nutrition', label: 'Nutrition' },
   { href: '/calendar', label: 'Calendar' },
-  { href: '/social', label: 'Social' },
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/profile', label: 'Profile' }
+  { href: '/social', label: 'Friends' },
+  { href: '/profile', label: 'Profile' },
+  { href: '/dashboard', label: 'Dashboard' }
 ];
 
 export function Navbar() {
   const router = useRouter();
   const [isAuthed, setIsAuthed] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  async function loadUnreadCount(nextUserId: string) {
-    const supabase = await getSupabaseClient();
-    const { data, error } = await supabase.from('notifications').select('id').eq('user_id', nextUserId).is('read_at', null);
-    if (!error) setUnreadCount((data ?? []).length);
-  }
 
   useEffect(() => {
     let active = true;
@@ -35,26 +26,13 @@ export function Navbar() {
 
     getSupabaseClient()
       .then(async (supabase) => {
-        // In dev, clear persisted auth session on each full app boot.
-        // This ensures a fresh logged-out state after stopping/restarting `npm run dev`.
-        if (process.env.NODE_ENV === 'development') {
-          await supabase.auth.signOut();
-        }
+        const { data: userData } = await supabase.auth.getUser();
+        if (!active) return;
+        setIsAuthed(Boolean(userData.user));
 
-        supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
+        const { data } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { id: string } } | null) => {
           if (!active) return;
-          setIsAuthed(Boolean(data.user));
-          setUserId(data.user?.id ?? null);
-          if (data.user) await loadUnreadCount(data.user.id);
-        });
-
-        const { data } = supabase.auth.onAuthStateChange(async (_event: string, session: { user?: { id: string } } | null) => {
-          if (!active) return;
-          const nextId = session?.user?.id ?? null;
-          setIsAuthed(Boolean(nextId));
-          setUserId(nextId);
-          if (nextId) await loadUnreadCount(nextId);
-          else setUnreadCount(0);
+          setIsAuthed(Boolean(session?.user?.id));
         });
 
         unsub = () => data.subscription.unsubscribe();
@@ -62,8 +40,6 @@ export function Navbar() {
       .catch(() => {
         if (!active) return;
         setIsAuthed(false);
-        setUserId(null);
-        setUnreadCount(0);
       });
 
     return () => {
@@ -77,68 +53,34 @@ export function Navbar() {
     const { error } = await supabase.auth.signOut();
     if (error) return;
     setIsAuthed(false);
-    setUserId(null);
-    setUnreadCount(0);
     router.push('/login');
     router.refresh();
   }
 
   return (
-    <header style={{ position: 'sticky', top: 0, zIndex: 10, backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--border)' }}>
-      <nav
-        style={{
-          maxWidth: 1100,
-          margin: '0 auto',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: 16,
-          padding: '14px 20px'
-        }}
-      >
-        <Link href="/" style={{ fontWeight: 700, letterSpacing: '.04em' }}>
-          FORMFIXER
+    <header className="top-nav-shell">
+      <nav className="top-nav">
+        <Link href="/" className="top-nav-logo" aria-label="FormCRT Home">
+          FC
         </Link>
-        <div style={{ display: 'flex', gap: 14, color: 'var(--muted)', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+
+        <div className="top-nav-links">
           {links.map((link) => (
             <Link key={link.href} href={link.href}>
               {link.label}
             </Link>
           ))}
-
-          <Link href="/notifications" style={{ position: 'relative' }}>
-            🔔
-            {isAuthed && unreadCount > 0 ? (
-              <span
-                style={{
-                  position: 'absolute',
-                  top: -8,
-                  right: -10,
-                  minWidth: 16,
-                  height: 16,
-                  borderRadius: 999,
-                  background: 'var(--danger)',
-                  color: '#fff',
-                  fontSize: 10,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '0 4px'
-                }}
-              >
-                {unreadCount}
-              </span>
-            ) : null}
-          </Link>
-
-          {isAuthed && userId ? (
-            <Button onClick={handleLogout} variant="ghost">
-              Logout
-            </Button>
-          ) : (
-            <Link href="/login">Login</Link>
-          )}
         </div>
+
+        {isAuthed ? (
+          <button type="button" className="top-nav-cta" onClick={handleLogout}>
+            Logout
+          </button>
+        ) : (
+          <Link href="/login" className="top-nav-cta">
+            Join Now
+          </Link>
+        )}
       </nav>
     </header>
   );
