@@ -2,18 +2,21 @@
 
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
-import { Section } from '@/components/layout/Section';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 
-function validateCredentials(email: string, password: string) {
+function validateCredentials(email: string, password: string, isSignup: boolean, confirmPassword: string, acceptedTerms: boolean) {
   const trimmedEmail = email.trim();
 
   if (!trimmedEmail) return 'Email is required.';
   if (!trimmedEmail.includes('@')) return 'Please enter a valid email.';
   if (!password) return 'Password is required.';
   if (password.length < 6) return 'Password must be at least 6 characters.';
+
+  if (isSignup) {
+    if (password !== confirmPassword) return 'Password and confirm password must match.';
+    if (!acceptedTerms) return 'Please agree to the terms and conditions.';
+  }
+
   return null;
 }
 
@@ -21,6 +24,9 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [isSignup, setIsSignup] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -30,7 +36,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage('');
 
-    const validationError = validateCredentials(email, password);
+    const validationError = validateCredentials(email, password, isSignup, confirmPassword, acceptedTerms);
     if (validationError) {
       setMessage(validationError);
       setLoading(false);
@@ -39,11 +45,16 @@ export default function LoginPage() {
 
     try {
       const supabase = await getSupabaseClient();
+
       if (isSignup) {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
         if (error) {
           setMessage(error.message);
           return;
+        }
+
+        if (data?.user?.id && username.trim()) {
+          await supabase.from('profiles').upsert({ id: data.user.id, username: username.trim().toLowerCase() }, { onConflict: 'id' });
         }
 
         if (data?.user && !data?.session) {
@@ -74,40 +85,89 @@ export default function LoginPage() {
   }
 
   return (
-    <Section title="Login / Signup" subtitle="Supabase Auth" description="Create an account or log in to save workout sessions.">
-      <Card>
-        <form onSubmit={handleSubmit} style={{ display: 'grid', gap: 10, maxWidth: 420 }}>
-          <label>
-            Email
+    <main className="auth-page">
+      <section className="auth-card" aria-label={isSignup ? 'Signup form' : 'Login form'}>
+        <h1 className="auth-title">{isSignup ? 'Signup' : 'Login'}</h1>
+        <p className="auth-subtitle">to get started</p>
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          {isSignup ? (
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              autoComplete="email"
-              style={{ width: '100%', marginTop: 6, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }}
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Username"
+              className="auth-input"
+              autoComplete="username"
+              required
             />
-          </label>
-          <label>
-            Password
+          ) : null}
+
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="itsnaeemanjum@gmail.com"
+            className="auth-input"
+            autoComplete="email"
+            required
+          />
+
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Password"
+            className="auth-input"
+            autoComplete={isSignup ? 'new-password' : 'current-password'}
+            required
+          />
+
+          {isSignup ? (
             <input
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              style={{ width: '100%', marginTop: 6, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Confirm Password"
+              className="auth-input"
+              autoComplete="new-password"
+              required
             />
-          </label>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <Button type="submit">{loading ? 'Please wait...' : isSignup ? 'Create account' : 'Login'}</Button>
-            <Button type="button" variant="ghost" onClick={() => setIsSignup((v) => !v)}>
-              {isSignup ? 'Switch to login' : 'Switch to signup'}
-            </Button>
-          </div>
-          {message ? <p style={{ color: 'var(--muted)', margin: 0 }}>{message}</p> : null}
+          ) : (
+            <button type="button" className="auth-text-link" onClick={() => setMessage('Password reset flow is not configured yet.')}
+            >
+              Forgot Password?
+            </button>
+          )}
+
+          {isSignup ? (
+            <label className="auth-checkbox-row">
+              <input
+                type="checkbox"
+                checked={acceptedTerms}
+                onChange={(e) => setAcceptedTerms(e.target.checked)}
+              />
+              <span>Agree to Our terms and Conditions</span>
+            </label>
+          ) : null}
+
+          <button type="submit" className="auth-submit" disabled={loading}>
+            {loading ? 'Please wait...' : 'Continue'}
+          </button>
+
+          {message ? <p className="auth-message">{message}</p> : null}
+
+          <p className="auth-switch-text">
+            {isSignup ? 'Already registered?' : 'New User?'}{' '}
+            <button type="button" className="auth-inline-link" onClick={() => {
+              setIsSignup((v) => !v);
+              setMessage('');
+            }}>
+              {isSignup ? 'Login' : 'Register'}
+            </button>
+          </p>
         </form>
-      </Card>
-    </Section>
+      </section>
+    </main>
   );
 }

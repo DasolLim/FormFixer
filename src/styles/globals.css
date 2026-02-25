@@ -456,3 +456,142 @@ button {
     font-size: 1.7rem;
   }
 }
+
+.auth-page {
+  min-height: calc(100vh - 72px);
+  display: grid;
+  place-items: center;
+  padding: 28px 20px;
+  background: #efefef;
+}
+
+.auth-card {
+  width: min(100%, 520px);
+  background: #f7f7f7;
+  border: 1px solid #d8d8d8;
+  border-radius: 16px;
+  padding: 38px 28px 24px;
+  color: #111111;
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 2.75rem;
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.auth-subtitle {
+  margin: 6px 0 22px;
+  color: #27272a;
+  font-size: 1.9rem;
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.auth-input {
+  width: 100%;
+  height: 58px;
+  border: 1px solid #dbdbdd;
+  border-radius: 8px;
+  background: #f2f2f3;
+  color: #18181b;
+  font-size: 1rem;
+  padding: 0 14px;
+  outline: none;
+}
+
+.auth-input::placeholder {
+  color: #9b9ba1;
+}
+
+.auth-input:focus-visible {
+  border-color: #1a34dd;
+  box-shadow: 0 0 0 2px rgba(26, 52, 221, 0.15);
+}
+
+.auth-text-link {
+  border: none;
+  background: transparent;
+  color: #3f3f46;
+  font-size: 0.92rem;
+  padding: 0;
+  justify-self: start;
+  cursor: pointer;
+}
+
+.auth-checkbox-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 0.86rem;
+  color: #4b4b53;
+}
+
+.auth-checkbox-row input {
+  width: 14px;
+  height: 14px;
+}
+
+.auth-submit {
+  margin-top: 2px;
+  width: 100%;
+  height: 56px;
+  border: none;
+  border-radius: 8px;
+  background: #1028d9;
+  color: #ffffff;
+  font-size: 1.04rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.auth-submit:disabled {
+  opacity: 0.85;
+  cursor: not-allowed;
+}
+
+.auth-message {
+  margin: 0;
+  color: #41414a;
+  font-size: 0.9rem;
+}
+
+.auth-switch-text {
+  margin: 0;
+  text-align: center;
+  color: #393941;
+  font-size: 0.93rem;
+}
+
+.auth-inline-link {
+  border: none;
+  background: transparent;
+  color: #111111;
+  font-size: 0.93rem;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: 28px 20px 20px;
+  }
+
+  .auth-title {
+    font-size: 2.1rem;
+  }
+
+  .auth-subtitle {
+    font-size: 1.3rem;
+  }
+
+  .auth-input,
+  .auth-submit {
+    height: 52px;
+  }
+}
