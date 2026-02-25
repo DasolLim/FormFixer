@@ -1,14 +1,20 @@
 :root {
-  --bg: #070707;
-  --surface: #121212;
-  --surface-soft: #1a1a1a;
-  --text: #f4f4f4;
-  --muted: #a3a3a3;
+  --bg: #0b0b0e;
+  --surface: #16161b;
+  --surface-soft: #1f1f26;
+  --text: #f4f4f5;
+  --muted: #a1a1aa;
   --primary: #ffffff;
-  --accent: #dd1010;
-  --danger: #ff6a88;
-  --border: #2a2a2a;
+  --accent: #1028d9;
+  --danger: #e5484d;
+  --border: #2e2e38;
   --radius: 16px;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-md: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: clamp(1.5rem, 2.5vw, 2rem);
 }
 
 * {
@@ -33,6 +39,74 @@ a {
 button {
   font: inherit;
 }
+
+#next {
+  min-height: 100%;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+p {
+  font-size: var(--font-size-md);
+  line-height: 1.5;
+}
+
+.page-container {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 20px 80px;
+}
+
+.ui-section {
+  margin-bottom: 28px;
+}
+
+.ui-section-subtitle {
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+.ui-section-title {
+  margin: 0 0 10px;
+  font-size: var(--font-size-xl);
+  color: var(--text);
+}
+
+.ui-section-description {
+  margin: 0 0 16px;
+  color: var(--muted);
+  max-width: 70ch;
+}
+
+.ui-card {
+  background: linear-gradient(160deg, var(--surface), var(--surface-soft));
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+
+.ui-card-title {
+  margin: 0 0 8px;
+  font-size: var(--font-size-lg);
+}
+
+.ui-card-description {
+  margin: 0 0 12px;
+  color: var(--muted);
+  font-size: var(--font-size-sm);
+}
+
 
 .top-nav-shell {
   position: sticky;
@@ -72,7 +146,7 @@ button {
   justify-content: center;
   gap: 18px;
   flex-wrap: wrap;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
 }
 
 .top-nav-links a {
@@ -85,11 +159,12 @@ button {
 
 .top-nav-cta {
   border: none;
-  background: #fff;
-  color: #111;
+  background: var(--accent);
+  color: #fff;
   font-weight: 600;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 18px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -151,12 +226,12 @@ button {
   border-radius: 8px;
   display: inline-block;
   font-weight: 700;
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   padding: 11px 18px;
 }
 
 .landing-primary-btn {
-  color: #171717;
+  color: #111111;
   background: #fff;
 }
 
@@ -291,7 +366,7 @@ button {
 }
 
 .landing-dark-btn {
-  background: #252527;
+  background: #202028;
   color: #fff;
   margin-top: 10px;
 }
@@ -329,8 +404,8 @@ button {
 .landing-footer-logo {
   display: inline-flex;
   font-weight: 800;
-  color: #e21c1c;
-  border: 2px solid #e21c1c;
+  color: var(--accent);
+  border: 2px solid var(--accent);
   border-radius: 50%;
   width: 66px;
   height: 66px;
@@ -376,7 +451,7 @@ button {
 }
 
 .calendar-shell .fc-toolbar-title {
-  font-size: 1rem;
+  font-size: var(--font-size-md);
 }
 
 .calendar-shell .fc-theme-standard td,
@@ -462,7 +537,7 @@ button {
   display: grid;
   place-items: center;
   padding: 28px 20px;
-  background: #efefef;
+  background: linear-gradient(180deg, #ececf0 0%, #e8e8ee 100%);
 }
 
 .auth-card {
@@ -499,7 +574,7 @@ button {
   border-radius: 8px;
   background: #f2f2f3;
   color: #18181b;
-  font-size: 1rem;
+  font-size: var(--font-size-md);
   padding: 0 14px;
   outline: none;
 }
@@ -517,7 +592,7 @@ button {
   border: none;
   background: transparent;
   color: #3f3f46;
-  font-size: 0.92rem;
+  font-size: var(--font-size-sm);
   padding: 0;
   justify-self: start;
   cursor: pointer;
@@ -527,7 +602,7 @@ button {
   display: flex;
   gap: 10px;
   align-items: center;
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: #4b4b53;
 }
 
@@ -544,7 +619,7 @@ button {
   border-radius: 8px;
   background: #1028d9;
   color: #ffffff;
-  font-size: 1.04rem;
+  font-size: var(--font-size-md);
   font-weight: 500;
   cursor: pointer;
 }
@@ -557,21 +632,21 @@ button {
 .auth-message {
   margin: 0;
   color: #41414a;
-  font-size: 0.9rem;
+  font-size: var(--font-size-sm);
 }
 
 .auth-switch-text {
   margin: 0;
   text-align: center;
   color: #393941;
-  font-size: 0.93rem;
+  font-size: var(--font-size-sm);
 }
 
 .auth-inline-link {
   border: none;
   background: transparent;
   color: #111111;
-  font-size: 0.93rem;
+  font-size: var(--font-size-sm);
   padding: 0;
   cursor: pointer;
   text-decoration: underline;

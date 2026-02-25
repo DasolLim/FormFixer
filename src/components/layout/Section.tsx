@@ -9,10 +9,10 @@ type SectionProps = {
 
 export function Section({ title, subtitle, description, children }: SectionProps) {
   return (
-    <section style={{ marginBottom: 28 }}>
-      <p style={{ color: 'var(--primary)', fontWeight: 600, marginBottom: 2 }}>{subtitle}</p>
-      <h1 style={{ marginTop: 0, marginBottom: 8 }}>{title}</h1>
-      {description ? <p style={{ marginTop: 0, marginBottom: 16, color: 'var(--muted)' }}>{description}</p> : null}
+    <section className="ui-section">
+      {subtitle ? <p className="ui-section-subtitle">{subtitle}</p> : null}
+      <h1 className="ui-section-title">{title}</h1>
+      {description ? <p className="ui-section-description">{description}</p> : null}
       {children}
     </section>
   );
