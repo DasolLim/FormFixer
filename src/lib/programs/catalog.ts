@@ -1,49 +1,38 @@
-export type ProgramTemplate = {
-  slug: string;
-  title: string;
-  description: string;
-  difficulty: 'Beginner' | 'Intermediate';
-  durationWeeks: number;
-  coachName: string;
-  structure: string;
-  exercises: string[];
-  days: Array<{ dayNumber: number; title: string; workoutFocus: string }>;
-};
+import { getSupabaseServer } from '../supabaseServer'
+import type { ProgramTemplate } from './types'
 
-export const PROGRAMS: ProgramTemplate[] = [
-  {
-    slug: 'form-fundamentals-4w',
-    title: 'Form Fundamentals 4-Week',
-    description: 'Build safe squat, push-up, and lunge mechanics with short guided sessions.',
-    difficulty: 'Beginner',
-    durationWeeks: 4,
-    coachName: 'Coach Maya R.',
-    structure: '3 workouts per week · mobility + strength focus',
-    exercises: ['Squat', 'Push-up', 'Lunge', 'Core Bracing'],
-    days: [
-      { dayNumber: 1, title: 'Day 1', workoutFocus: 'Squat form + tempo reps' },
-      { dayNumber: 2, title: 'Day 2', workoutFocus: 'Push-up mechanics + core' },
-      { dayNumber: 3, title: 'Day 3', workoutFocus: 'Lunge stability + balance' }
-    ]
-  },
-  {
-    slug: 'strength-base-6w',
-    title: 'Strength Base 6-Week',
-    description: 'Progressive training split with movement quality and consistency tracking.',
-    difficulty: 'Intermediate',
-    durationWeeks: 6,
-    coachName: 'Coach Daniel K.',
-    structure: '4 workouts per week · strength + conditioning',
-    exercises: ['Squat', 'Push-up', 'Lunge', 'Plank Variations'],
-    days: [
-      { dayNumber: 1, title: 'Day 1', workoutFocus: 'Lower body strength' },
-      { dayNumber: 2, title: 'Day 2', workoutFocus: 'Upper body + core' },
-      { dayNumber: 3, title: 'Day 3', workoutFocus: 'Full body technique' },
-      { dayNumber: 4, title: 'Day 4', workoutFocus: 'Conditioning + mobility' }
-    ]
+export async function fetchAllPrograms(): Promise<ProgramTemplate[]> {
+  const supabase = getSupabaseServer()
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*')
+    .eq('is_public', true)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.error('[fetchAllPrograms]', error)
+    return []
   }
-];
+  return (data ?? []) as ProgramTemplate[]
+}
 
-export function getProgramBySlug(slug: string) {
-  return PROGRAMS.find((program) => program.slug === slug);
+export async function fetchProgramBySlug(slug: string): Promise<ProgramTemplate | null> {
+  const supabase = getSupabaseServer()
+  const { data, error } = await supabase
+    .from('programs')
+    .select('*')
+    .eq('slug', slug)
+    .single()
+
+  if (error) return null
+  return data as ProgramTemplate
+}
+
+export async function fetchProgramsByEquipment(
+  userEquipment: string[]
+): Promise<ProgramTemplate[]> {
+  const all = await fetchAllPrograms()
+  return all.filter((p) =>
+    p.required_equipment.every((eq) => userEquipment.includes(eq))
+  )
 }

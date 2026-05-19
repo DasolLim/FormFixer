@@ -2,7 +2,49 @@ import type { Landmark } from '@/lib/pose/math';
 import { analyzeSquat, initialSquatState, type SquatPhase } from '@/lib/pose/squat';
 import { angleDeg, avg } from '@/lib/pose/math';
 import { POSE_LANDMARK_INDEX } from '@/lib/pose/constants';
-import type { ExerciseType } from '@/lib/workouts/types';
+import type { ExerciseType, RepScore, SessionScore } from '@/lib/workouts/types';
+
+export function computeSessionScore(
+  exerciseId: string,
+  repScores: RepScore[],
+  durationMs: number
+): SessionScore {
+  if (repScores.length === 0) {
+    return { exerciseId, repCount: 0, repScores: [], averageOverall: 0, averageDepth: 0, averageSymmetry: 0, averageForm: 0, formTrend: 'stable', topIssues: [], durationMs };
+  }
+
+  const avgField = (field: 'overall' | 'depth' | 'symmetry' | 'form') =>
+    Math.round(repScores.reduce((sum, r) => sum + r[field], 0) / repScores.length);
+
+  // Form trend: compare first half vs second half — require at least 4 reps for a meaningful read.
+  let formTrend: SessionScore['formTrend'] = 'stable';
+  if (repScores.length >= 4) {
+    const mid = Math.floor(repScores.length / 2);
+    const firstHalf = repScores.slice(0, mid);
+    const secondHalf = repScores.slice(mid);
+    const avgFirst = firstHalf.length ? firstHalf.reduce((s, r) => s + r.overall, 0) / firstHalf.length : 0;
+    const avgSecond = secondHalf.length ? secondHalf.reduce((s, r) => s + r.overall, 0) / secondHalf.length : 0;
+    formTrend = avgSecond > avgFirst + 5 ? 'improving' : avgSecond < avgFirst - 5 ? 'declining' : 'stable';
+  }
+
+  // Top 3 most frequent issue IDs across all reps.
+  const issueFreq = new Map<string, number>();
+  repScores.forEach(r => r.issueIds.forEach(id => issueFreq.set(id, (issueFreq.get(id) ?? 0) + 1)));
+  const topIssues = [...issueFreq.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => id);
+
+  return {
+    exerciseId,
+    repCount: repScores.length,
+    repScores,
+    averageOverall: avgField('overall'),
+    averageDepth: avgField('depth'),
+    averageSymmetry: avgField('symmetry'),
+    averageForm: avgField('form'),
+    formTrend,
+    topIssues,
+    durationMs,
+  };
+}
 
 type Phase = SquatPhase | 'start' | 'down' | 'up';
 

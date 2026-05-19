@@ -23,21 +23,3 @@ export const SQUAT_THRESHOLDS = {
   smoothingAlpha: 0.35,
   stableCueFrames: 6
 } as const;
-
-// Draw links from MediaPipe pose landmark indexes.
-export const SKELETON_CONNECTIONS: Array<[number, number]> = [
-  [11, 12],
-  [11, 13],
-  [13, 15],
-  [12, 14],
-  [14, 16],
-  [11, 23],
-  [12, 24],
-  [23, 24],
-  [23, 25],
-  [25, 27],
-  [24, 26],
-  [26, 28],
-  [27, 31],
-  [28, 32]
-];

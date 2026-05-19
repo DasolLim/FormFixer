@@ -42,3 +42,51 @@ export function smoothLandmarks(current: Landmark[], previous: Landmark[] | null
     visibility: point.visibility
   }));
 }
+
+/**
+ * AngleSmoother — Median filter with standard-deviation outlier removal.
+ * Ported from Good-GYM's smooth_angle() algorithm.
+ *
+ * More robust than EMA against single-frame pose detection glitches,
+ * without introducing visible lag for the user.
+ */
+export class AngleSmoother {
+  private readonly windowSize: number;
+  private history: number[];
+
+  constructor(windowSize = 5) {
+    this.windowSize = windowSize;
+    this.history = [];
+  }
+
+  update(newAngle: number): number {
+    this.history.push(newAngle);
+    if (this.history.length > this.windowSize) {
+      this.history.shift();
+    }
+
+    if (this.history.length === 1) return newAngle;
+
+    const sorted = [...this.history].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 !== 0
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+
+    const squaredDiffs = this.history.map(v => Math.pow(v - median, 2));
+    const stdDev = Math.sqrt(squaredDiffs.reduce((a, b) => a + b, 0) / this.history.length);
+
+    const filtered = this.history.filter(v => Math.abs(v - median) <= 2 * stdDev);
+    const values = filtered.length > 0 ? filtered : this.history;
+
+    return values.reduce((a, b) => a + b, 0) / values.length;
+  }
+
+  reset(): void {
+    this.history = [];
+  }
+
+  get sampleCount(): number {
+    return this.history.length;
+  }
+}
