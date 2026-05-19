@@ -1,23 +1,52 @@
-import Link from 'next/link';
-import { Section } from '@/components/layout/Section';
-import { Card } from '@/components/ui/Card';
-import { PROGRAMS } from '@/lib/programs/catalog';
+import { fetchAllPrograms } from '@/lib/programs/catalog'
+import { getSupabaseServer } from '@/lib/supabaseServer'
+import { redirect } from 'next/navigation'
+import ProgramGrid from './ProgramGrid'
 
-export default function ProgramsPage() {
+export const dynamic = 'force-dynamic'
+
+export default async function ProgramsPage() {
+  const supabase = getSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('equipment_profile')
+    .eq('id', user.id)
+    .single()
+
+  const equipment: string[] = (profile?.equipment_profile as string[]) ?? ['bodyweight']
+
+  const [allPrograms, userProgressResult] = await Promise.all([
+    fetchAllPrograms(),
+    supabase
+      .from('user_program_progress')
+      .select('*')
+      .eq('user_id', user.id),
+  ])
+
+  const filtered = allPrograms.filter((p) =>
+    p.required_equipment.every((eq) => equipment.includes(eq))
+  )
+
+  const progressMap = Object.fromEntries(
+    (userProgressResult.data ?? [])
+      .filter((p) => p.program_id != null)
+      .map((p) => [p.program_id as string, p])
+  )
+
   return (
-    <Section title="Program Library" subtitle="Coaching Programs" description="Browse guided training programs and start one anytime.">
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
-        {PROGRAMS.map((program) => (
-          <Card key={program.slug} title={program.title} description={program.description}>
-            <p style={{ margin: '0 0 10px 0', color: 'var(--muted)' }}>
-              {program.difficulty} · {program.durationWeeks} weeks · Coach {program.coachName}
-            </p>
-            <Link href={`/programs/${program.slug}`} style={{ color: 'var(--primary)', fontWeight: 600 }}>
-              View Program →
-            </Link>
-          </Card>
-        ))}
-      </div>
-    </Section>
-  );
+    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 20px' }}>
+      <header style={{ padding: '32px 0 8px' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 6px' }}>
+          Program Library
+        </h1>
+        <p style={{ fontSize: 14, color: 'var(--text-muted)', margin: 0 }}>
+          Guided training programs tailored to your equipment — pick one and follow along session by session.
+        </p>
+      </header>
+      <ProgramGrid programs={filtered} progressMap={progressMap} />
+    </div>
+  )
 }
