@@ -35,99 +35,11 @@
   --shadow-lime:    0 4px 20px rgba(213,255,95,0.2);
   --shadow-fab:     0 4px 20px rgba(0,0,0,0.6);
 
-  /* ── Backwards-compat aliases (pages with inline var() references) ──────── */
-  --bg:             #101010;
-  --surface:        #1D1D1D;
-  --surface-soft:   #2A2A2A;
-  --text:           #F7FBFF;
-  --muted:          #8A8A8A;
-  --primary:        #D5FF5F;
-  --accent-primary: #D5FF5F;
-  --accent-dark:    #252525;
-  --danger:         #FF6B6B;
-  --border-light:   rgba(255,255,255,0.07);
-  --radius:         20px;
-  --text-on-dark:   #F7FBFF;
-  --shadow-pill:    0 2px 12px rgba(0,0,0,0.4);
-
   --font-size-xs: 0.75rem;
   --font-size-sm: 0.875rem;
   --font-size-md: 1rem;
   --font-size-lg: 1.125rem;
   --font-size-xl: clamp(1.5rem, 2.5vw, 2rem);
-}
-
-/* ─── 2B. DARK MODE ──────────────────────────────────────────────────────── */
-[data-theme="dark"] {
-  --bg-app:         #0f0f0f;
-  --bg-screen:      #141414;
-  --bg-card:        #1a1a1a;
-  --bg-card-raised: #222222;
-  --bg-input:       #2a2a2a;
-  --text-primary:   #f0f0f0;
-  --text-secondary: #a0a0a0;
-  --text-muted:     #5a5a5a;
-  --border:         rgba(255,255,255,0.08);
-  --accent:         #22c55e;
-  --accent-dim:     #16a34a;
-  --accent-muted:   rgba(34,197,94,0.12);
-  --text-on-lime:   #ffffff;
-  --text-lime:      #22c55e;
-  --color-good:     #22c55e;
-  --bg:             #0f0f0f;
-  --surface:        #1a1a1a;
-  --surface-soft:   #2a2a2a;
-  --text:           #f0f0f0;
-  --muted:          #a0a0a0;
-  --primary:        #22c55e;
-  --accent-primary: #22c55e;
-  --danger:         #ef4444;
-}
-
-/* ─── 2C. GYM MODE ───────────────────────────────────────────────────────── */
-[data-theme="gym"] {
-  --bg-app:         #000000;
-  --bg-screen:      #080808;
-  --bg-card:        #0a0a0a;
-  --bg-card-raised: #111111;
-  --bg-input:       #161616;
-  --text-primary:   #ffffff;
-  --text-secondary: #cccccc;
-  --text-muted:     #666666;
-  --border:         rgba(255,255,255,0.12);
-  --accent:         #00ff88;
-  --accent-dim:     #00cc6e;
-  --accent-muted:   rgba(0,255,136,0.12);
-  --text-on-lime:   #000000;
-  --text-lime:      #00ff88;
-  --color-good:     #00ff88;
-  --danger:         #ff3333;
-  --bg:             #000000;
-  --surface:        #0a0a0a;
-  --surface-soft:   #161616;
-  --text:           #ffffff;
-  --muted:          #cccccc;
-  --primary:        #00ff88;
-  --accent-primary: #00ff88;
-  --font-size-hud:  28px;
-  --font-weight-body: 500;
-}
-
-[data-theme="gym"] .camera-hud-text {
-  font-size: var(--font-size-hud, 18px);
-  font-weight: var(--font-weight-body, 400);
-}
-
-/* Smooth theme transitions — excluded on load via data-theme-changing */
-*, *::before, *::after {
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    color 0.1s ease;
-}
-
-[data-theme-changing] *, [data-theme-changing] *::before, [data-theme-changing] *::after {
-  transition: none !important;
 }
 
 /* ─── 3. RESET & BASE ─────────────────────────────────────────────────────── */
@@ -3655,4 +3567,27 @@ button:active { transform: scale(0.97); }
   border-color: var(--accent);
   background: var(--accent-muted);
   color: var(--accent);
+}
+
+/* ─── AVATAR MUSCLE MAP ──────────────────────────────────────────────────── */
+@keyframes avatar-rotate {
+  0%, 45%  { opacity: 1; }
+  50%       { opacity: 0; }
+  55%, 100% { opacity: 1; }
+}
+
+.avatar-view-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.avatar-view-btn.active {
+  background: var(--accent);
+  color: var(--text-on-lime);
+  border-color: transparent;
 }

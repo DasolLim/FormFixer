@@ -4,15 +4,11 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import { useTheme, type Theme } from '@/lib/theme/useTheme';
 import {
   Home,
   Camera,
   Dumbbell,
   Apple,
-  Sun,
-  Moon,
-  Zap,
 } from 'lucide-react';
 
 const bottomNavItems = [
@@ -30,17 +26,6 @@ const desktopNavItems = [
   { href: '/calendar',  label: 'Calendar' },
 ] as const;
 
-const THEME_ICONS: Record<Theme, React.ReactNode> = {
-  light: <Sun  size={18} aria-hidden="true" />,
-  dark:  <Moon size={18} aria-hidden="true" />,
-  gym:   <Zap  size={18} aria-hidden="true" />,
-};
-
-const THEME_LABELS: Record<Theme, string> = {
-  light: 'Light mode',
-  dark:  'Dark mode',
-  gym:   'Gym mode',
-};
 
 function getInitials(username: string | null | undefined, email: string | null | undefined): string {
   if (username) return username.slice(0, 2).toUpperCase();
@@ -52,10 +37,8 @@ export function Navbar() {
   const router   = useRouter();
   const pathname = usePathname();
   const [isAuthed,  setIsAuthed]  = useState(false);
-  const [userId,    setUserId]    = useState<string | undefined>(undefined);
   const [username,  setUsername]  = useState<string | null>(null);
   const [email,     setEmail]     = useState<string | null>(null);
-  const { theme, cycleTheme } = useTheme(userId);
 
   useEffect(() => {
     let active = true;
@@ -68,7 +51,6 @@ export function Navbar() {
         if (!active) return;
         const user = userData.user;
         setIsAuthed(Boolean(user));
-        setUserId(user?.id);
         setEmail(user?.email ?? null);
 
         if (user?.id) {
@@ -145,27 +127,8 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* Right: theme + auth + profile avatar */}
+        {/* Right: auth + profile avatar */}
         <div className="navbar-end">
-          <button
-            type="button"
-            onClick={cycleTheme}
-            aria-label={`Current: ${THEME_LABELS[theme]}. Click to switch.`}
-            title={THEME_LABELS[theme]}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              color: 'var(--text-secondary)',
-              display: 'flex',
-              alignItems: 'center',
-              padding: '6px',
-              borderRadius: '8px',
-            }}
-          >
-            {THEME_ICONS[theme]}
-          </button>
-
           {isAuthed ? (
             <button
               type="button"

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AuthGate } from '@/components/auth/AuthGate';
 import { Card } from '@/components/ui/Card';
-import { StreakBadge } from '@/components/ui/StreakBadge';
 import { TodayCard } from '@/components/ui/TodayCard';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { fetchWorkoutSessions, fetchFormScoreHistory, fetchSessionRepScores } from '@/lib/workouts/sessions';
@@ -15,7 +14,7 @@ import { fetchDailyMealItems } from '@/lib/nutrition/sessions';
 import type { WorkoutEventRow } from '@/lib/calendar/sessions';
 import type { WeeklyFrequency } from '@/lib/workouts/frequency';
 import FrequencyChart from '@/components/ui/FrequencyChart';
-import MuscleAvatarCanvas from '@/components/ui/MuscleAvatarCanvas';
+import AvatarMuscleMap from '@/components/ui/AvatarMuscleMap';
 import { ChevronRight } from 'lucide-react';
 
 function safeExerciseName(exerciseId: string | null | undefined, fallback: string): string {
@@ -177,6 +176,12 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // TODO: remove after verifying AvatarMuscleMap key mapping
+  useEffect(() => {
+    console.log('[FormFixer] muscleIntensities (normalized):', muscleIntensities)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   useEffect(() => {
     (async () => {
       const supabase = getSupabaseClient();
@@ -203,10 +208,6 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
   const totalReps = useMemo(() => sessions.reduce((sum, s) => sum + s.rep_count, 0), [sessions]);
   const activeProgram = programs[0];
   const chartsWithData = formHistory.filter(h => h.sessions.length >= 1);
-
-  const sortedMuscles = Object.entries(muscleIntensities)
-    .filter(([, v]) => v > 0)
-    .sort(([, a], [, b]) => b - a);
 
   return (
     <AuthGate>
@@ -238,9 +239,17 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
         {loading && <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center' }}>Loading dashboard...</p>}
         {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
 
-        {/* 2 — Day Streak (always visible, top-left above Browse Programs) */}
-        <div style={{ marginBottom: 16 }}>
-          <StreakBadge currentStreak={currentStreak} longestStreak={longestStreak} />
+        {/* 2 — Day Streak highlighted card */}
+        <div
+          className="stat-card"
+          style={{
+            background: 'var(--accent-muted)',
+            border: '1px solid var(--border-active)',
+            alignSelf: 'flex-start',
+          }}
+        >
+          <span className="stat-card-value">{currentStreak}</span>
+          <span className="stat-card-label">Day Streak</span>
         </div>
 
         {/* 3 — Today's Schedule / Browse Programs */}
@@ -292,37 +301,8 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
           }
         </Card>
 
-        {/* 7 — Muscle Activity 3D */}
-        <Card title="Muscle Activity (7 Days)">
-          <MuscleAvatarCanvas intensities={muscleIntensities} height={280} />
-          {sortedMuscles.length > 0 && (
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {sortedMuscles.map(([muscle, intensity]) => (
-                <div key={muscle} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)', width: 96, textTransform: 'capitalize', flexShrink: 0 }}>
-                    {muscle.replace(/_/g, ' ')}
-                  </span>
-                  <div style={{ flex: 1, height: 6, borderRadius: 999, background: 'var(--bg-input)', overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%',
-                      width: `${Math.round(intensity * 100)}%`,
-                      borderRadius: 999,
-                      background: intensity >= 0.6 ? '#D5FF5F' : intensity >= 0.3 ? '#888800' : 'var(--text-muted)',
-                    }} />
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                    {Math.round(intensity * 100)}%
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-          {sortedMuscles.length === 0 && (
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center', padding: '12px 0' }}>
-              No muscle activity recorded this week.
-            </p>
-          )}
-        </Card>
+        {/* 7 — Muscle Activity avatar */}
+        <AvatarMuscleMap muscleData={muscleIntensities} />
       </div>
     </AuthGate>
   );

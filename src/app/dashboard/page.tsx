@@ -31,6 +31,8 @@ export default async function DashboardPage() {
     targetSessionsPerWeek = profileRes.data?.target_sessions_per_week ?? 3;
     todayEvent = todayRes;
     frequency = freqRes;
+    // TODO: remove after verifying AvatarMuscleMap key mapping
+    console.log('[FormFixer] raw muscle volumes:', volumeRes)
     muscleIntensities = normalizeMuscleIntensity(volumeRes);
   }
 
