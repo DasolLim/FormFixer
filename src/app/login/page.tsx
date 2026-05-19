@@ -44,7 +44,7 @@ export default function LoginPage() {
     }
 
     try {
-      const supabase = await getSupabaseClient();
+      const supabase = getSupabaseClient();
 
       if (isSignup) {
         const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
@@ -62,15 +62,41 @@ export default function LoginPage() {
           return;
         }
 
+        if (data?.user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('onboarding_complete')
+            .eq('id', data.user.id)
+            .single();
+          const dest = profile?.onboarding_complete ? '/dashboard' : '/onboarding/movement-screen';
+          setMessage('Signup successful. Redirecting...');
+          router.push(dest);
+          router.refresh();
+          return;
+        }
+
         setMessage('Signup successful. Redirecting to dashboard...');
         router.push('/dashboard');
         router.refresh();
         return;
       }
 
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) {
         setMessage(error.message);
+        return;
+      }
+
+      if (signInData?.user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('onboarding_complete')
+          .eq('id', signInData.user.id)
+          .single();
+        const dest = profile?.onboarding_complete ? '/dashboard' : '/onboarding/movement-screen';
+        setMessage('Login successful. Redirecting...');
+        router.push(dest);
+        router.refresh();
         return;
       }
 
