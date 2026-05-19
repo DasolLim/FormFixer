@@ -2,45 +2,97 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
+import { useTheme, type Theme } from '@/lib/theme/useTheme';
+import {
+  Home,
+  Camera,
+  Dumbbell,
+  Apple,
+  Sun,
+  Moon,
+  Zap,
+} from 'lucide-react';
 
-const links = [
-  { href: '/', label: 'Home' },
-  { href: '/camera', label: 'Camera' },
-  { href: '/programs', label: 'Program' },
+const bottomNavItems = [
+  { href: '/dashboard', label: 'Home',      icon: Home },
+  { href: '/camera',    label: 'Camera',    icon: Camera },
+  { href: '/programs',  label: 'Programs',  icon: Dumbbell },
+  { href: '/nutrition', label: 'Nutrition', icon: Apple },
+] as const;
+
+const desktopNavItems = [
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/camera',    label: 'Camera' },
+  { href: '/programs',  label: 'Programs' },
   { href: '/nutrition', label: 'Nutrition' },
-  { href: '/calendar', label: 'Calendar' },
-  { href: '/social', label: 'Friends' },
-  { href: '/profile', label: 'Profile' },
-  { href: '/dashboard', label: 'Dashboard' }
-];
+  { href: '/calendar',  label: 'Calendar' },
+] as const;
+
+const THEME_ICONS: Record<Theme, React.ReactNode> = {
+  light: <Sun  size={18} aria-hidden="true" />,
+  dark:  <Moon size={18} aria-hidden="true" />,
+  gym:   <Zap  size={18} aria-hidden="true" />,
+};
+
+const THEME_LABELS: Record<Theme, string> = {
+  light: 'Light mode',
+  dark:  'Dark mode',
+  gym:   'Gym mode',
+};
+
+function getInitials(username: string | null | undefined, email: string | null | undefined): string {
+  if (username) return username.slice(0, 2).toUpperCase();
+  if (email) return email[0].toUpperCase();
+  return 'FF';
+}
 
 export function Navbar() {
-  const router = useRouter();
-  const [isAuthed, setIsAuthed] = useState(false);
+  const router   = useRouter();
+  const pathname = usePathname();
+  const [isAuthed,  setIsAuthed]  = useState(false);
+  const [userId,    setUserId]    = useState<string | undefined>(undefined);
+  const [username,  setUsername]  = useState<string | null>(null);
+  const [email,     setEmail]     = useState<string | null>(null);
+  const { theme, cycleTheme } = useTheme(userId);
 
   useEffect(() => {
     let active = true;
     let unsub: (() => void) | null = null;
 
-    getSupabaseClient()
-      .then(async (supabase) => {
+    (async () => {
+      try {
+        const supabase = getSupabaseClient();
         const { data: userData } = await supabase.auth.getUser();
         if (!active) return;
-        setIsAuthed(Boolean(userData.user));
+        const user = userData.user;
+        setIsAuthed(Boolean(user));
+        setUserId(user?.id);
+        setEmail(user?.email ?? null);
 
-        const { data } = supabase.auth.onAuthStateChange((_event: string, session: { user?: { id: string } } | null) => {
-          if (!active) return;
-          setIsAuthed(Boolean(session?.user?.id));
-        });
+        if (user?.id) {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('username')
+            .eq('id', user.id)
+            .single();
+          if (active) setUsername(profile?.username ?? null);
+        }
 
+        const { data } = supabase.auth.onAuthStateChange(
+          (_event: string, session: { user?: { id: string; email?: string } } | null) => {
+            if (!active) return;
+            setIsAuthed(Boolean(session?.user?.id));
+            setEmail(session?.user?.email ?? null);
+          }
+        );
         unsub = () => data.subscription.unsubscribe();
-      })
-      .catch(() => {
+      } catch {
         if (!active) return;
         setIsAuthed(false);
-      });
+      }
+    })();
 
     return () => {
       active = false;
@@ -49,7 +101,7 @@ export function Navbar() {
   }, []);
 
   async function handleLogout() {
-    const supabase = await getSupabaseClient();
+    const supabase = getSupabaseClient();
     const { error } = await supabase.auth.signOut();
     if (error) return;
     setIsAuthed(false);
@@ -57,31 +109,122 @@ export function Navbar() {
     router.refresh();
   }
 
-  return (
-    <header className="top-nav-shell">
-      <nav className="top-nav">
-        <Link href="/" className="top-nav-logo" aria-label="FormCRT Home">
-          FC
-        </Link>
+  const initials = getInitials(username, email);
+  const isProfileActive = pathname === '/profile' || pathname?.startsWith('/profile/');
 
-        <div className="top-nav-links">
-          {links.map((link) => (
-            <Link key={link.href} href={link.href}>
-              {link.label}
-            </Link>
-          ))}
+  return (
+    <>
+      <header className="navbar">
+        {/* Mobile: greeting */}
+        <div className="navbar-user">
+          <div className="avatar-placeholder">FF</div>
+          <div className="navbar-greeting">
+            <span className="navbar-greeting-sub">Welcome back</span>
+            <span className="navbar-greeting-name">FormFixer</span>
+          </div>
         </div>
 
-        {isAuthed ? (
-          <button type="button" className="top-nav-cta" onClick={handleLogout}>
-            Logout
+        {/* Desktop: brand */}
+        <Link href="/" className="navbar-brand-wrap">
+          FormFixer
+        </Link>
+
+        {/* Desktop: nav links */}
+        <nav className="desktop-nav-links">
+          {desktopNavItems.map(({ href, label }) => {
+            const isActive = pathname === href || pathname?.startsWith(href + '/');
+            return (
+              <Link
+                key={href}
+                href={href}
+                className={`desktop-nav-link${isActive ? ' active' : ''}`}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        {/* Right: theme + auth + profile avatar */}
+        <div className="navbar-end">
+          <button
+            type="button"
+            onClick={cycleTheme}
+            aria-label={`Current: ${THEME_LABELS[theme]}. Click to switch.`}
+            title={THEME_LABELS[theme]}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              alignItems: 'center',
+              padding: '6px',
+              borderRadius: '8px',
+            }}
+          >
+            {THEME_ICONS[theme]}
           </button>
-        ) : (
-          <Link href="/login" className="top-nav-cta">
-            Join Now
-          </Link>
-        )}
+
+          {isAuthed ? (
+            <button
+              type="button"
+              className="navbar-auth-btn"
+              onClick={handleLogout}
+              style={{ display: 'none' }}
+            />
+          ) : (
+            <Link href="/login" className="navbar-auth-btn">
+              Sign in
+            </Link>
+          )}
+
+          {/* Profile avatar — always shown when authed */}
+          {isAuthed && (
+            <Link
+              href="/profile"
+              aria-label="Go to profile"
+              title="Profile"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: '50%',
+                background: isProfileActive ? 'var(--accent)' : 'var(--bg-input)',
+                border: `2px solid ${isProfileActive ? 'var(--accent)' : 'var(--border)'}`,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 12,
+                fontWeight: 700,
+                color: isProfileActive ? 'var(--accent-fg)' : 'var(--text-secondary)',
+                textDecoration: 'none',
+                flexShrink: 0,
+                transition: 'border-color 0.15s, background 0.15s',
+                letterSpacing: '0.02em',
+              }}
+            >
+              {initials}
+            </Link>
+          )}
+        </div>
+      </header>
+
+      {/* Mobile bottom tab nav */}
+      <nav className="bottom-nav">
+        {bottomNavItems.map(({ href, label, icon: Icon }) => {
+          const isActive = pathname === href || pathname?.startsWith(href + '/');
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`nav-item${isActive ? ' active' : ''}`}
+            >
+              <Icon size={22} strokeWidth={1.5} />
+              <span>{label}</span>
+            </Link>
+          );
+        })}
       </nav>
-    </header>
+    </>
   );
 }
