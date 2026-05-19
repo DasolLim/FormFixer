@@ -6,3 +6,9 @@ export function kneeOutRatio(leftKnee: PoseLandmark, rightKnee: PoseLandmark, le
   const ankles = Math.max(distance2d(leftAnkle, rightAnkle), 1e-4);
   return knees / ankles;
 }
+
+// Returns the absolute difference between two joint angles (degrees).
+// Used to detect left/right asymmetry. 0 = perfectly symmetric.
+export function angleDifference(angleA: number, angleB: number): number {
+  return Math.abs(angleA - angleB);
+}

@@ -22,3 +22,30 @@ export function angleDeg(a: PoseLandmark, b: PoseLandmark, c: PoseLandmark) {
 export function verticalLeanDeg(shoulderMid: PoseLandmark, hipMid: PoseLandmark) {
   return Math.abs((Math.atan2(hipMid.x - shoulderMid.x, hipMid.y - shoulderMid.y) * 180) / Math.PI);
 }
+
+// Semantic alias for verticalLeanDeg — preferred name for torso-specific form checks.
+export function torsoLeanDeg(shoulderMid: PoseLandmark, hipMid: PoseLandmark): number {
+  return verticalLeanDeg(shoulderMid, hipMid);
+}
+
+// Returns normalized heel-lift amount using world landmarks (y-axis points up in world space).
+// Positive = heel lifted above ankle; near-zero = heel planted.
+// Normalize by lower-leg length so thresholds are body-size-independent.
+export function heelLiftRatio(heel: PoseLandmark, ankle: PoseLandmark, knee: PoseLandmark): number {
+  const lowerLegLen = Math.max(distance2d(knee, ankle), 1e-4);
+  return (heel.y - ankle.y) / lowerLegLen;
+}
+
+// Returns absolute horizontal deviation of knee from vertical ankle alignment,
+// normalized by upper-leg length. 0 = knee tracks directly over ankle.
+export function kneeTrackingRatio(knee: PoseLandmark, ankle: PoseLandmark, hip: PoseLandmark): number {
+  const refLen = Math.max(distance2d(hip, ankle), 1e-4);
+  return Math.abs(knee.x - ankle.x) / refLen;
+}
+
+// Returns how far the wrist deviates horizontally from directly under the shoulder (degrees).
+// Near 0° = wrist directly below shoulder; large values = wrist too wide or too narrow.
+export function wristAlignmentDeg(wrist: PoseLandmark, shoulder: PoseLandmark): number {
+  const dy = Math.abs(shoulder.y - wrist.y) + 1e-6;
+  return Math.abs((Math.atan2(wrist.x - shoulder.x, dy) * 180) / Math.PI);
+}
