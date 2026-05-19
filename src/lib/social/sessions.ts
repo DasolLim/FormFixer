@@ -101,7 +101,8 @@ export async function updateMyProfileSettings(payload: { userId: string; usernam
     is_private: payload.privacyMode === 'private'
   };
 
-  const primaryUpsert = await supabase.from('profiles').upsert(upsertPayload, { onConflict: 'id' });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const primaryUpsert = await supabase.from('profiles').upsert(upsertPayload as any, { onConflict: 'id' });
   if (!primaryUpsert.error) return { error: null };
 
   if (isMissingSchemaError(primaryUpsert.error)) {
@@ -472,7 +473,7 @@ export async function sendFriendAction(payload: {
           return { error: { message: 'Already following this user.' } };
         }
       } else {
-        requestId = legacyCreate.data.id;
+        if (legacyCreate.data) requestId = legacyCreate.data.id;
       }
     } else {
       requestId = created.data.id;
@@ -559,19 +560,73 @@ export async function unfollowUser(payload: { currentUserId: string; targetUserI
   return { error: fallback.error };
 }
 
-export async function sendGymInvite(payload: { currentUserId: string; friendId: string; message: string }) {
-  const supabase = await getSupabaseClient();
-  const cleanMessage = payload.message.trim();
-  if (!cleanMessage) return { error: { message: 'Please enter a message.' } };
+export type GymInvitePayload = {
+  actorId: string
+  targetId: string
+  inviteDate: string
+  exerciseId: string
+  message?: string
+}
 
+export async function sendGymInvite(payload: GymInvitePayload): Promise<void> {
+  const supabase = getSupabaseClient()
   const { error } = await supabase.from('notifications').insert({
-    user_id: payload.friendId,
-    actor_id: payload.currentUserId,
+    actor_id: payload.actorId,
+    user_id: payload.targetId,
     type: 'gym_invite',
-    message: cleanMessage
-  });
+    message: payload.message ?? `${payload.actorId} invited you to work out`,
+    invite_date: `${payload.inviteDate}T09:00:00`,
+    invite_exercise_id: payload.exerciseId,
+    invite_status: 'pending',
+  })
+  if (error) throw error
+}
 
-  return { error };
+export async function acceptGymInvite(
+  notificationId: string,
+  userId: string
+): Promise<void> {
+  const supabase = getSupabaseClient()
+
+  const { data: notif } = await supabase
+    .from('notifications')
+    .select('actor_id, invite_date, invite_exercise_id, user_id')
+    .eq('id', notificationId)
+    .single()
+
+  if (!notif || !notif.invite_date || !notif.actor_id) throw new Error('Invite not found or missing fields')
+
+  await supabase
+    .from('notifications')
+    .update({ invite_status: 'accepted', read_at: new Date().toISOString() })
+    .eq('id', notificationId)
+
+  const eventBase = {
+    title: `Gym session — ${notif.invite_exercise_id?.replace(/_/g, ' ') ?? 'workout'}`,
+    scheduled_date: notif.invite_date,
+    exercise_id: notif.invite_exercise_id,
+    is_completed: false,
+  }
+
+  await supabase.from('workout_events').insert([
+    { ...eventBase, user_id: userId },
+    { ...eventBase, user_id: notif.actor_id },
+  ])
+
+  await supabase.from('notifications').insert({
+    actor_id: userId,
+    user_id: notif.actor_id,
+    type: 'friend_request_accepted',
+    message: `Accepted your gym invite for ${new Date(notif.invite_date).toLocaleDateString()}`,
+  })
+}
+
+export async function declineGymInvite(notificationId: string): Promise<void> {
+  const supabase = getSupabaseClient()
+  await supabase
+    .from('notifications')
+    .update({ invite_status: 'declined', read_at: new Date().toISOString() })
+    .eq('id', notificationId)
 }
 
 export async function fetchNotifications(userId: string) {
@@ -604,4 +659,24 @@ export async function areFriends(userId: string, friendId: string) {
   const relationship = await resolveRelationshipState(userId, friendId);
   if (relationship.error) return { value: false, error: relationship.error };
   return { value: relationship.data.isFollowing, error: null };
+}
+
+export async function sendWorkoutAlert(
+  fromUserId: string,
+  toUserIds: string[],
+  message: string
+): Promise<void> {
+  if (!toUserIds.length) return
+  const supabase = getSupabaseClient()
+  // workout_alert is a valid text value for the type column
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { error } = await (supabase as any).from('notifications').insert(
+    toUserIds.map((toId) => ({
+      actor_id: fromUserId,
+      user_id: toId,
+      type: 'workout_alert',
+      message,
+    }))
+  )
+  if (error) throw new Error(error.message)
 }

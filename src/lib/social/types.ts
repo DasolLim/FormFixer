@@ -54,9 +54,12 @@ export type NotificationRow = {
   id: string;
   user_id: string;
   actor_id: string | null;
-  type: 'friend_request_received' | 'friend_request_accepted' | 'gym_invite';
+  type: 'friend_request_received' | 'friend_request_accepted' | 'gym_invite' | 'workout_alert';
   message: string;
   data: Record<string, unknown>;
   created_at: string;
   read_at: string | null;
+  invite_date: string | null;
+  invite_exercise_id: string | null;
+  invite_status: string | null;
 };
