@@ -1,49 +1,12 @@
-type SupabaseClientLike = {
-  auth: {
-    getUser: () => Promise<{ data: { user: { id: string; email?: string } | null } }>;
-    signUp: (args: { email: string; password: string }) => Promise<{ data: { user: { id: string; email?: string } | null; session: unknown | null }; error: { message: string } | null }>;
-    signInWithPassword: (args: { email: string; password: string }) => Promise<{ error: { message: string } | null }>;
-    signOut: () => Promise<{ error: { message: string } | null }>;
-    onAuthStateChange: (callback: (event: string, session: { user?: { id: string } } | null) => void) => { data: { subscription: { unsubscribe: () => void } } };
-  };
-  from: (table: string) => any;
-};
+'use client'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { createBrowserClient } from '@supabase/ssr'
+import type { Database } from './database.types'
 
-let cachedClient: SupabaseClientLike | null = null;
-let cachedClientPromise: Promise<SupabaseClientLike> | null = null;
-
-const runWithoutNavigatorLock = async <T>(_name: string, _acquireTimeout: number, fn: () => Promise<T>): Promise<T> => fn();
-
-export async function getSupabaseClient(): Promise<SupabaseClientLike> {
-  if (cachedClient) return cachedClient;
-  if (cachedClientPromise) return cachedClientPromise;
-
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables.');
-  }
-
-  cachedClientPromise = (async () => {
-    const dynamicImporter = new Function('u', 'return import(/* webpackIgnore: true */ u)') as (url: string) => Promise<any>;
-    const supabaseModule = await dynamicImporter('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm');
-
-    cachedClient = supabaseModule.createClient(supabaseUrl, supabaseAnonKey, {
-      auth: {
-        persistSession: true,
-        autoRefreshToken: true,
-        detectSessionInUrl: true,
-        lock: runWithoutNavigatorLock
-      }
-    }) as SupabaseClientLike;
-
-    return cachedClient;
-  })();
-
-  try {
-    return await cachedClientPromise;
-  } finally {
-    cachedClientPromise = null;
-  }
+// Synchronous — safe to use with `await getSupabaseClient()` for backwards compat
+export function getSupabaseClient() {
+  return createBrowserClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 }
