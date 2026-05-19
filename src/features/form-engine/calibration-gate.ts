@@ -41,14 +41,14 @@ export class CalibrationGate {
 
     const criticalPoints = critical as PoseLandmark[];
 
-    const leftHip = getLandmark(frame, POSE_LANDMARKS.leftHip)!;
-    const rightHip = getLandmark(frame, POSE_LANDMARKS.rightHip)!;
-    const leftShoulder = getLandmark(frame, POSE_LANDMARKS.leftShoulder)!;
-    const rightShoulder = getLandmark(frame, POSE_LANDMARKS.rightShoulder)!;
-    const leftKnee = getLandmark(frame, POSE_LANDMARKS.leftKnee)!;
-    const rightKnee = getLandmark(frame, POSE_LANDMARKS.rightKnee)!;
-    const leftAnkle = getLandmark(frame, POSE_LANDMARKS.leftAnkle)!;
-    const rightAnkle = getLandmark(frame, POSE_LANDMARKS.rightAnkle)!;
+    const leftHip = getLandmark(frame, POSE_LANDMARKS.LEFT_HIP)!;
+    const rightHip = getLandmark(frame, POSE_LANDMARKS.RIGHT_HIP)!;
+    const leftShoulder = getLandmark(frame, POSE_LANDMARKS.LEFT_SHOULDER)!;
+    const rightShoulder = getLandmark(frame, POSE_LANDMARKS.RIGHT_SHOULDER)!;
+    const leftKnee = getLandmark(frame, POSE_LANDMARKS.LEFT_KNEE)!;
+    const rightKnee = getLandmark(frame, POSE_LANDMARKS.RIGHT_KNEE)!;
+    const leftAnkle = getLandmark(frame, POSE_LANDMARKS.LEFT_ANKLE)!;
+    const rightAnkle = getLandmark(frame, POSE_LANDMARKS.RIGHT_ANKLE)!;
 
     const shoulderMid = midpoint(leftShoulder, rightShoulder);
     const hipMid = midpoint(leftHip, rightHip);

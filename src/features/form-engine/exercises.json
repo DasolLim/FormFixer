@@ -1,0 +1,174 @@
+{
+  "exercises": {
+    "squat": {
+      "name": "Squat",
+      "isUnilateral": false,
+      "cameraAngle": "front",
+      "primary_muscles": ["quads", "glutes", "hamstrings"],
+      "landmarks": {
+        "left":  [23, 25, 27],
+        "right": [24, 26, 28]
+      },
+      "anglePoint": [23, 25, 27],
+      "repThresholds": {
+        "downAngle": 110,
+        "upAngle": 160,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "push_up": {
+      "name": "Push-Up",
+      "isUnilateral": false,
+      "cameraAngle": "side",
+      "primary_muscles": ["chest", "triceps", "shoulders"],
+      "landmarks": {
+        "left":  [11, 13, 15],
+        "right": [12, 14, 16]
+      },
+      "anglePoint": [11, 13, 15],
+      "repThresholds": {
+        "downAngle": 130,
+        "upAngle": 160,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "sit_up": {
+      "name": "Sit-Up",
+      "isUnilateral": false,
+      "cameraAngle": "side",
+      "primary_muscles": ["core"],
+      "landmarks": {
+        "left":  [11, 23, 27],
+        "right": [12, 24, 28]
+      },
+      "anglePoint": [11, 23, 27],
+      "repThresholds": {
+        "downAngle": 145,
+        "upAngle": 160,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "bicep_curl": {
+      "name": "Bicep Curl",
+      "isUnilateral": false,
+      "cameraAngle": "front",
+      "primary_muscles": ["biceps"],
+      "landmarks": {
+        "left":  [11, 13, 15],
+        "right": [12, 14, 16]
+      },
+      "anglePoint": [11, 13, 15],
+      "repThresholds": {
+        "downAngle": 160,
+        "upAngle": 60,
+        "reversedDirection": true
+      },
+      "formChecks": []
+    },
+    "lateral_raise": {
+      "name": "Lateral Raise",
+      "isUnilateral": false,
+      "cameraAngle": "front",
+      "primary_muscles": ["shoulders"],
+      "landmarks": {
+        "left":  [23, 11, 13],
+        "right": [24, 12, 14]
+      },
+      "anglePoint": [23, 11, 13],
+      "repThresholds": {
+        "downAngle": 30,
+        "upAngle": 80,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "overhead_press": {
+      "name": "Overhead Press",
+      "isUnilateral": false,
+      "cameraAngle": "front",
+      "primary_muscles": ["shoulders", "triceps"],
+      "landmarks": {
+        "left":  [23, 11, 13],
+        "right": [24, 12, 14]
+      },
+      "anglePoint": [23, 11, 13],
+      "repThresholds": {
+        "downAngle": 100,
+        "upAngle": 150,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "leg_raise": {
+      "name": "Leg Raise",
+      "isUnilateral": true,
+      "cameraAngle": "side",
+      "primary_muscles": ["core", "hip_flexors"],
+      "landmarks": {
+        "left":  [11, 23, 27],
+        "right": [12, 24, 28]
+      },
+      "anglePoint": [11, 23, 27],
+      "repThresholds": {
+        "downAngle": 130,
+        "upAngle": 160,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "knee_raise": {
+      "name": "Knee Raise",
+      "isUnilateral": true,
+      "cameraAngle": "front",
+      "primary_muscles": ["core", "hip_flexors", "quads"],
+      "landmarks": {
+        "left":  [23, 25, 27],
+        "right": [24, 26, 28]
+      },
+      "anglePoint": [23, 25, 27],
+      "repThresholds": {
+        "downAngle": 110,
+        "upAngle": 160,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "crunch": {
+      "name": "Crunch",
+      "isUnilateral": false,
+      "cameraAngle": "side",
+      "primary_muscles": ["core"],
+      "landmarks": {
+        "left":  [11, 23, 27],
+        "right": [12, 24, 28]
+      },
+      "anglePoint": [11, 23, 27],
+      "repThresholds": {
+        "downAngle": 170,
+        "upAngle": 150,
+        "reversedDirection": false
+      },
+      "formChecks": []
+    },
+    "pull_up": {
+      "name": "Pull-Up",
+      "isUnilateral": false,
+      "cameraAngle": "front",
+      "primary_muscles": ["back", "biceps"],
+      "landmarks": {
+        "left":  [11, 13, 15],
+        "right": [12, 14, 16]
+      },
+      "anglePoint": [11, 13, 15],
+      "repThresholds": {
+        "downAngle": 140,
+        "upAngle": 70,
+        "reversedDirection": true
+      },
+      "formChecks": []
+    }
+  }
+}
