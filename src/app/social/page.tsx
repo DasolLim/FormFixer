@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { AuthGate } from '@/components/auth/AuthGate';
-import { Section } from '@/components/layout/Section';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { FriendCard } from '@/components/social/FriendCard';
@@ -21,6 +20,7 @@ import {
   unfollowUser
 } from '@/lib/social/sessions';
 import type { ProfileRow } from '@/lib/social/types';
+import { Search } from 'lucide-react';
 
 export default function SocialPage() {
   const [userId, setUserId] = useState<string | null>(null);
@@ -43,12 +43,12 @@ export default function SocialPage() {
     ]);
 
     if (!friendsResult.error) {
-      setFriends(friendsResult.data.map((row) => ({ id: row.id, profile: row.profile })));
+      setFriends((friendsResult.data as Array<{ id: string; profile: ProfileRow | null }>).map((row) => ({ id: row.id, profile: row.profile })));
     }
 
     if (!pendingResult.error) {
-      setPending(pendingResult.data.map((row) => ({ id: row.id, requester_id: row.requester_id })));
-      const profileResult = await fetchProfilesByIds(Array.from(new Set(pendingResult.data.map((row) => row.requester_id))));
+      setPending(pendingResult.data.map((row: { id: string; requester_id: string }) => ({ id: row.id, requester_id: row.requester_id })));
+      const profileResult = await fetchProfilesByIds(Array.from(new Set(pendingResult.data.map((row: { requester_id: string }) => row.requester_id))));
       if (!profileResult.error) {
         const map: Record<string, ProfileRow> = {};
         for (const profile of profileResult.data) map[profile.id] = profile;
@@ -57,18 +57,18 @@ export default function SocialPage() {
     }
 
     if (!outgoingResult.error) {
-      setOutgoingPendingUserIds(new Set(outgoingResult.data.map((row) => row.receiver_id)));
+      setOutgoingPendingUserIds(new Set(outgoingResult.data.map((row: { receiver_id: string }) => row.receiver_id)));
     }
   }
 
   useEffect(() => {
-    getSupabaseClient().then((supabase) =>
-      supabase.auth.getUser().then(async ({ data }: { data: { user: { id: string } | null } }) => {
-        if (!data.user) return;
-        setUserId(data.user.id);
-        await loadSocialData(data.user.id);
-      })
-    );
+    (async () => {
+      const supabase = getSupabaseClient();
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) return;
+      setUserId(data.user.id);
+      await loadSocialData(data.user.id);
+    })();
   }, []);
 
   const friendIds = useMemo(() => new Set(friends.map((friend) => friend.profile?.id).filter(Boolean) as string[]), [friends]);
@@ -151,99 +151,139 @@ export default function SocialPage() {
 
   async function handleSendInvite() {
     if (!userId || !inviteFriendId) return;
-    const result = await sendGymInvite({ currentUserId: userId, friendId: inviteFriendId, message: inviteText });
-    if (result.error) {
-      setMessage(result.error.message);
-      return;
+    try {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      await sendGymInvite({
+        actorId: userId,
+        targetId: inviteFriendId,
+        inviteDate: tomorrow.toISOString().split('T')[0],
+        exerciseId: 'squat',
+        message: inviteText || undefined,
+      });
+      setMessage('Gym invite sent.');
+      setInviteFriendId(null);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : 'Failed to send invite');
     }
-    setMessage('Gym invite sent.');
-    setInviteFriendId(null);
   }
 
   return (
     <AuthGate>
-      <Section title="Social" subtitle="v4 Foundation" description="Find friends, manage requests, and send gym invites.">
-        <Card title="Find Friends by Username">
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="search username" style={{ minWidth: 220, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }} />
-            <Button onClick={handleSearch}>Search</Button>
-          </div>
-          <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-            {results.map((profile) => {
-              const targetIsPrivate = typeof profile.is_private === 'boolean' ? profile.is_private : profile.privacy_mode === 'private';
-              const actionLabel = friendIds.has(profile.id)
-                ? 'Following'
-                : outgoingPendingUserIds.has(profile.id)
-                  ? 'Requested'
-                  : 'Follow';
+      <div className="ui-section">
+        <div className="social-desktop-grid">
+          {/* Left: search + pending */}
+          <div className="social-col-left">
+            <Card title="Find Friends">
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search by username…"
+                  className="form-input"
+                  style={{ flex: 1 }}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                />
+                <Button onClick={handleSearch} style={{ height: 48, minWidth: 48, width: 48, padding: 0, borderRadius: 12, flex: 'none' }}>
+                  <Search size={18} strokeWidth={1.5} />
+                </Button>
+              </div>
 
-              return (
-                <Card key={profile.id} title={profile.username ?? 'Unnamed'} description={profile.email ?? 'No email'}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-                    <span style={{ color: 'var(--muted)', fontSize: 13 }}>{targetIsPrivate ? 'Private account' : 'Public account'}</span>
-                    <Button
-                      variant="ghost"
-                      onClick={() => handleFriendAction(profile)}
-                      disabled={actionLabel === 'Requested'}
-                      style={{ opacity: actionLabel === 'Requested' ? 0.5 : 1 }}
-                    >
-                      {actionLabel}
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        </Card>
+              {results.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                  {results.map((profile) => {
+                    const targetIsPrivate = typeof profile.is_private === 'boolean' ? profile.is_private : profile.privacy_mode === 'private';
+                    const actionLabel = friendIds.has(profile.id)
+                      ? 'Following'
+                      : outgoingPendingUserIds.has(profile.id)
+                        ? 'Requested'
+                        : 'Follow';
 
-        <div style={{ marginTop: 16, display: 'grid', gap: 12 }}>
-          <Card title="Pending Friend Requests" description="Accept or decline incoming requests.">
-            <div style={{ display: 'grid', gap: 10 }}>
-              {pending.length ? (
-                pending.map((request) => (
-                  <FriendRequestCard
-                    key={request.id}
-                    requester={pendingProfiles[request.requester_id] ?? null}
-                    onAccept={() => handleRespond(request.id, request.requester_id, true)}
-                    onDecline={() => handleRespond(request.id, request.requester_id, false)}
-                    disabled={processingRequestId === request.id}
-                  />
-                ))
-              ) : (
-                <p style={{ color: 'var(--muted)' }}>No pending requests.</p>
+                    return (
+                      <div key={profile.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: '1px solid var(--border-light)' }}>
+                        <div className="avatar-placeholder" style={{ width: 40, height: 40, fontSize: 16 }}>
+                          {(profile.username || '?').slice(0, 2).toUpperCase()}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 15, fontWeight: 500, margin: 0 }}>{profile.username ?? 'Unnamed'}</p>
+                          <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{targetIsPrivate ? 'Private' : 'Public'}</p>
+                        </div>
+                        <Button
+                          variant={actionLabel === 'Following' ? 'ghost' : 'solid'}
+                          onClick={() => handleFriendAction(profile)}
+                          disabled={actionLabel === 'Requested'}
+                          style={{ height: 36, padding: '0 14px', fontSize: 13, opacity: actionLabel === 'Requested' ? 0.5 : 1 }}
+                        >
+                          {actionLabel}
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </div>
-          </Card>
+            </Card>
 
-          <Card title="Friends List" description="Your accepted friends and quick invite action.">
-            <div style={{ display: 'grid', gap: 10 }}>
+            {pending.length > 0 && (
+              <Card title="Pending Requests">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                  {pending.map((request) => (
+                    <FriendRequestCard
+                      key={request.id}
+                      requester={pendingProfiles[request.requester_id] ?? null}
+                      onAccept={() => handleRespond(request.id, request.requester_id, true)}
+                      onDecline={() => handleRespond(request.id, request.requester_id, false)}
+                      disabled={processingRequestId === request.id}
+                    />
+                  ))}
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* Right: friends + invite */}
+          <div className="social-col-right">
+            <Card title={`Friends (${friends.length})`}>
               {friends.length ? (
-                friends.map((friend) =>
-                  friend.profile ? <FriendCard key={friend.id} profile={friend.profile} onNotify={() => setInviteFriendId(friend.profile!.id)} /> : null
-                )
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                  {friends.map((friend) =>
+                    friend.profile ? (
+                      <FriendCard
+                        key={friend.id}
+                        profile={friend.profile}
+                        onNotify={() => setInviteFriendId(friend.profile!.id)}
+                      />
+                    ) : null
+                  )}
+                </div>
               ) : (
-                <p style={{ color: 'var(--muted)' }}>No friends yet.</p>
+                <p style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 8 }}>No friends yet — search above.</p>
               )}
-            </div>
-          </Card>
+            </Card>
+
+            {inviteFriendId && (
+              <Card title="Send Gym Invite">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
+                  <textarea
+                    value={inviteText}
+                    onChange={(e) => setInviteText(e.target.value)}
+                    rows={3}
+                    className="form-input"
+                    style={{ height: 'auto', padding: '12px 14px', resize: 'vertical' }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Button onClick={handleSendInvite} full>Send Invite</Button>
+                    <Button variant="ghost" onClick={() => setInviteFriendId(null)}>Cancel</Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+          </div>
         </div>
 
-        {inviteFriendId ? (
-          <div style={{ marginTop: 16 }}>
-            <Card title="Notify Friend" description="Send a gym invite/planning message.">
-              <div style={{ display: 'grid', gap: 8 }}>
-                <textarea value={inviteText} onChange={(e) => setInviteText(e.target.value)} rows={3} style={{ padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }} />
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <Button onClick={handleSendInvite}>Send Invite</Button>
-                  <Button variant="ghost" onClick={() => setInviteFriendId(null)}>Cancel</Button>
-                </div>
-              </div>
-            </Card>
-          </div>
-        ) : null}
-
-        {message ? <p style={{ color: 'var(--muted)' }}>{message}</p> : null}
-      </Section>
+        {message && (
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', textAlign: 'center', margin: 0 }}>{message}</p>
+        )}
+      </div>
     </AuthGate>
   );
 }
