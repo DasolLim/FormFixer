@@ -5,52 +5,43 @@ type ButtonProps = {
   children: ReactNode;
   href?: string;
   onClick?: MouseEventHandler<HTMLButtonElement>;
-  variant?: 'solid' | 'ghost';
+  variant?: 'solid' | 'ghost' | 'dark';
+  full?: boolean;
   style?: CSSProperties;
   type?: 'button' | 'submit' | 'reset';
+  disabled?: boolean;
+  className?: string;
 };
 
-const baseStyle: CSSProperties = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: 10,
-  border: '1px solid transparent',
-  minHeight: 42,
-  padding: '10px 18px',
-  fontWeight: 600,
-  fontSize: 'var(--font-size-sm)',
-  letterSpacing: '.01em',
-  cursor: 'pointer',
-  transition: 'all .2s ease'
-};
+function variantClass(variant: NonNullable<ButtonProps['variant']>): string {
+  if (variant === 'dark')  return 'btn btn-secondary';
+  if (variant === 'ghost') return 'btn btn-ghost';
+  return 'btn btn-primary';
+}
 
-const variants: Record<NonNullable<ButtonProps['variant']>, CSSProperties> = {
-  solid: {
-    background: 'var(--accent)',
-    color: '#ffffff',
-    boxShadow: '0 8px 16px rgba(16, 40, 217, 0.2)'
-  },
-  ghost: {
-    background: 'transparent',
-    border: '1px solid var(--border)',
-    color: 'var(--text)'
-  }
-};
-
-export function Button({ children, href, onClick, variant = 'solid', style, type = 'button' }: ButtonProps) {
-  const mergedStyle = { ...baseStyle, ...variants[variant], ...style };
+export function Button({
+  children,
+  href,
+  onClick,
+  variant = 'solid',
+  full = false,
+  style,
+  type = 'button',
+  disabled,
+  className,
+}: ButtonProps) {
+  const classes = [variantClass(variant), full ? 'btn-full' : '', className ?? ''].filter(Boolean).join(' ');
 
   if (href) {
     return (
-      <Link href={href} style={mergedStyle}>
+      <Link href={href} className={classes} style={style}>
         {children}
       </Link>
     );
   }
 
   return (
-    <button type={type} onClick={onClick} style={mergedStyle}>
+    <button type={type} onClick={onClick} className={classes} style={style} disabled={disabled}>
       {children}
     </button>
   );
