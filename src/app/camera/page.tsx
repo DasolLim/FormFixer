@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { clearCanvas, drawPoseOverlay, resizeCanvasToVideo } from '@/lib/pose/draw';
 import type { MediaPipePoseResultLike } from '@/features/pose/pose-types';
@@ -25,8 +25,9 @@ import { SessionSummaryPanel } from '@/components/ui/SessionSummaryPanel';
 import { ExerciseInfoCard } from '@/components/ui/ExerciseInfoCard';
 import { WorkoutConfigPanel } from '@/components/ui/WorkoutConfigPanel';
 import { RestTimer } from '@/components/ui/RestTimer';
-import { Play, Square, RotateCcw, Save, Pause, Flag } from 'lucide-react';
+import { Play, Flag, CameraOff } from 'lucide-react';
 import PRBadge from '@/components/ui/PRBadge';
+import { SessionSidePanel } from '@/components/ui/SessionSidePanel';
 import type { PRCheckResult } from '@/lib/workouts/records';
 import { useSpeechCue } from '@/features/pose/use-speech-cue';
 
@@ -41,15 +42,6 @@ type VisionModule = {
   };
 };
 
-function cueColor(severity: string): string {
-  if (severity === 'error')    return 'var(--color-warn)';
-  if (severity === 'positive') return 'var(--color-good)';
-  return 'var(--color-neutral)';
-}
-
-function cueDotColor(severity: string): string {
-  return severity === 'positive' ? '#D5FF5F' : '#FF6B6B';
-}
 
 const DEFAULT_CONFIG: WorkoutPlanConfig = {
   exerciseId: 'squat',
@@ -58,7 +50,7 @@ const DEFAULT_CONFIG: WorkoutPlanConfig = {
   restSeconds: 60,
 };
 
-export default function CameraPage() {
+function CameraPageInner() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -90,6 +82,11 @@ export default function CameraPage() {
     targetReps: programContext?.targetReps ?? DEFAULT_CONFIG.targetReps,
     restSeconds: programContext?.restSeconds ?? DEFAULT_CONFIG.restSeconds,
   }), [programContext]);
+
+  const exercises = useMemo(
+    () => EXERCISE_IDS.slice(0, 6).map(id => ({ id, name: getExerciseConfig(id).name })),
+    []
+  );
 
   const [planState, dispatch] = useReducer(workoutPlanReducer, makeInitialPlanState(initialConfig));
   // Mirror setResults into a ref so the auto-save effect always reads the
@@ -368,6 +365,11 @@ export default function CameraPage() {
     dispatch({ type: 'SKIP_REST' });
   }
 
+  function handleTurnOffCamera() {
+    stopCamera();
+    resetSession();
+  }
+
   function handleSummaryDone() {
     setSessionScore(null);
   }
@@ -451,21 +453,7 @@ export default function CameraPage() {
               <canvas ref={canvasRef} />
               {prResult && <PRBadge result={prResult} />}
 
-              {/* Start Camera overlay — visible only when camera is off */}
-              {!isCameraRunning && (
-                <div style={{
-                  position: 'absolute', inset: 0, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  zIndex: 10, background: 'rgba(0,0,0,0.45)',
-                }}>
-                  <button type="button" className="cam-main-btn cam-main-btn-start" onClick={startCamera}
-                    style={{ width: 'auto', padding: '12px 28px' }}>
-                    <Play size={18} strokeWidth={2} /> Start Camera
-                  </button>
-                </div>
-              )}
-
-              {/* Exercise picker + LIVE badge */}
+              {/* Exercise picker + Turn Off Camera */}
               <div className="cam-hud cam-hud-exercise">
                 <select
                   value={selectedExercise}
@@ -478,10 +466,15 @@ export default function CameraPage() {
                   ))}
                 </select>
                 {isCameraRunning && (
-                  <div className="cam-live-badge">
-                    <span className="cam-live-dot" />
-                    LIVE
-                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={handleTurnOffCamera}
+                    aria-label="Turn off camera"
+                    style={{ height: 42, padding: '0 14px', flexShrink: 0, borderRadius: 11, background: 'rgba(16,16,16,0.84)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.1)' }}
+                  >
+                    <CameraOff size={16} strokeWidth={1.5} />
+                  </button>
                 )}
               </div>
 
@@ -492,9 +485,12 @@ export default function CameraPage() {
                 </div>
               )}
 
-              {/* Bottom HUD — stats + timer */}
+              {/* Bottom HUD — calibration status + stats + timer */}
               {isCameraRunning && (
                 <div className="cam-hud cam-hud-bottom">
+                  <div className={`cam-hud-cue-row${isCalibrated ? ' cam-hud-ready' : ' cam-hud-warn'}`}>
+                    {cue}
+                  </div>
                   <div className="cam-stats-row">
                     {isUnilateral ? (
                       <>
@@ -525,11 +521,10 @@ export default function CameraPage() {
           </div>
         </div>
 
-        {/* ── Right column: 4 always-visible cards ── */}
+        {/* ── Right column: data panel ── */}
         <div className="camera-col-right">
           <div className="cam-control-panel">
 
-            {/* Rest timer overlay */}
             {planState.phase === 'resting' && (
               <RestTimer
                 durationSeconds={planState.config.restSeconds}
@@ -540,10 +535,16 @@ export default function CameraPage() {
 
             {planState.phase !== 'resting' && (
               <>
-                {/* Card 1: Exercise & Config */}
-                <div className="cam-feedback-panel">
-                  <p className="cam-panel-label">Exercise</p>
-                  {!isCameraRunning && planState.phase === 'idle' && (
+                {!isCameraRunning && planState.phase === 'idle' && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-full"
+                      onClick={startCamera}
+                      style={{ marginBottom: 4 }}
+                    >
+                      <Play size={18} strokeWidth={2} /> Start Camera
+                    </button>
                     <WorkoutConfigPanel
                       config={{
                         targetSets: planState.config.targetSets,
@@ -552,147 +553,41 @@ export default function CameraPage() {
                       }}
                       onChange={cfg => dispatch({ type: 'UPDATE_CONFIG', config: cfg })}
                     />
-                  )}
-                  {isMultiSet && isCameraRunning && planState.phase === 'active' && (
-                    <button type="button" className="cam-main-btn"
-                      style={{ background: 'var(--accent)', color: 'var(--text-on-lime)', marginTop: 8 }}
-                      onClick={handleCompleteSet}>
-                      <Flag size={16} strokeWidth={2} />
-                      Complete Set {planState.currentSet}
-                    </button>
-                  )}
-                </div>
+                  </>
+                )}
 
-                {/* Card 2: Form Feedback (always visible) */}
-                <div className="cam-feedback-panel">
-                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 12px' }}>
-                    Form feedback
-                  </p>
-                  {error ? (
-                    <p style={{ fontSize: 16, fontWeight: 800, color: '#FF6B6B', margin: 0 }}>{error}</p>
-                  ) : topCues.length === 0 ? (
-                    <div className="feedback-cue-wrap">
-                      <p className="feedback-cue-text">{cue}</p>
-                      {secondaryCue && <p className="feedback-cue-secondary">{secondaryCue}</p>}
-                    </div>
-                  ) : (
-                    <div className="feedback-cue-list">
-                      {topCues.map((c, i) => (
-                        <div key={i} className="feedback-cue-item">
-                          <span className="feedback-cue-dot" style={{ background: cueDotColor(c.severity) }} />
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
-                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>
-                              {c.text}
-                            </span>
-                            {c.voiceText && c.voiceText !== c.text && (
-                              <span style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.3 }}>
-                                {c.voiceText}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Card 3: Timer */}
-                <div className="cam-feedback-panel">
-                  <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 8px' }}>Timer</p>
-                  <p style={{
-                    fontSize: 28, fontWeight: 800, fontVariantNumeric: 'tabular-nums',
-                    margin: '0 0 10px', lineHeight: 1,
-                    color: timerRunning ? 'var(--accent)' : 'var(--text-secondary)',
-                  }}>
-                    {formatTime(timerElapsed)}
-                  </p>
-                  {/* Stopped — never started */}
-                  {!timerRunning && timerElapsed === 0 && (
-                    <button type="button" className="cam-main-btn cam-main-btn-start" onClick={startTimer}>
-                      <Play size={16} strokeWidth={2} /> Start
-                    </button>
-                  )}
-                  {/* Running */}
-                  {timerRunning && (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" className="cam-ctrl-btn" onClick={pauseTimer}>
-                        <Pause size={14} strokeWidth={1.5} /> Pause
-                      </button>
-                      <button type="button" className="cam-ctrl-btn"
-                        style={{ borderColor: 'rgba(255,107,107,0.4)', color: '#FF6B6B' }}
-                        onClick={pauseTimer}>
-                        <Square size={14} strokeWidth={1.5} /> End
-                      </button>
-                    </div>
-                  )}
-                  {/* Paused */}
-                  {!timerRunning && timerElapsed > 0 && (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button type="button" className="cam-main-btn cam-main-btn-start"
-                        style={{ height: 40, fontSize: 13 }}
-                        onClick={startTimer}>
-                        <Play size={14} strokeWidth={2} /> Resume
-                      </button>
-                      <button type="button" className="cam-ctrl-btn"
-                        style={{ borderColor: 'rgba(255,107,107,0.4)', color: '#FF6B6B' }}
-                        onClick={resetTimer}>
-                        <Square size={14} strokeWidth={1.5} /> End
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* Card 4: Voice Cues toggle */}
-                <div className="cam-feedback-panel" style={{ paddingTop: 14, paddingBottom: 14 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Voice cues</p>
-                      <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '2px 0 0' }}>Spoken feedback on reps</p>
-                    </div>
-                    {/* Pill toggle */}
-                    <button
-                      type="button"
-                      role="switch"
-                      aria-checked={voiceEnabled}
-                      onClick={() => setVoiceEnabled(v => !v)}
-                      style={{
-                        position: 'relative', flexShrink: 0,
-                        width: 44, height: 26, borderRadius: 999, border: 'none', cursor: 'pointer',
-                        background: voiceEnabled ? 'var(--accent)' : 'var(--bg-input)',
-                        transition: 'background 0.2s ease',
-                        padding: 0,
-                      }}
-                    >
-                      <span style={{
-                        position: 'absolute', top: 3,
-                        left: voiceEnabled ? 21 : 3,
-                        width: 20, height: 20, borderRadius: '50%',
-                        background: voiceEnabled ? 'var(--text-on-lime)' : 'var(--text-muted)',
-                        transition: 'left 0.2s ease',
-                        display: 'block',
-                      }} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Save / Reset row */}
-                <div className="cam-ctrl-row">
-                  <button type="button" className="cam-ctrl-btn" onClick={resetSession}>
-                    <RotateCcw size={15} strokeWidth={1.5} /> Reset
-                  </button>
-                  <button type="button" className="cam-ctrl-btn" onClick={handleSaveSession}>
-                    <Save size={15} strokeWidth={1.5} /> Save
-                  </button>
-                </div>
-
-                {saveMessage && <p className="cam-save-msg">{saveMessage}</p>}
-
-                {/* End button */}
-                {isCameraRunning && (
-                  <button type="button" className="cam-main-btn cam-main-btn-stop" onClick={stopCamera} style={{ marginTop: 8 }}>
-                    <Square size={18} strokeWidth={2} /> End Session
+                {isMultiSet && isCameraRunning && planState.phase === 'active' && (
+                  <button
+                    type="button"
+                    className="btn btn-primary btn-full"
+                    onClick={handleCompleteSet}
+                    style={{ marginBottom: 4 }}
+                  >
+                    <Flag size={16} strokeWidth={2} />
+                    Complete Set {planState.currentSet}
                   </button>
                 )}
+
+                {error && (
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-warn)', margin: '0 0 8px' }}>
+                    {error}
+                  </p>
+                )}
+
+                <SessionSidePanel
+                  exercises={exercises}
+                  selectedExercise={selectedExercise}
+                  onExerciseChange={handleExerciseChange}
+                  formScore={getCurrentFormScore()}
+                  topCues={topCues}
+                  primaryCue={cue}
+                  voiceEnabled={voiceEnabled}
+                  onVoiceToggle={() => setVoiceEnabled(v => !v)}
+                  onSave={handleSaveSession}
+                  isCameraRunning={isCameraRunning}
+                />
+
+                {saveMessage && <p className="cam-save-msg">{saveMessage}</p>}
 
                 {showInfoCard && (
                   <ExerciseInfoCard exerciseId={selectedExercise} onStart={() => setShowInfoCard(false)} />
@@ -712,5 +607,13 @@ export default function CameraPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CameraPage() {
+  return (
+    <Suspense>
+      <CameraPageInner />
+    </Suspense>
   );
 }
