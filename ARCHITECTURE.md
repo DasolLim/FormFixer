@@ -62,14 +62,18 @@ src/
 │   │   └── SendInviteCard.tsx   # Date + exercise picker for gym invites
 │   └── ui/
 │       ├── AchievementBadge.tsx
+│       ├── AvatarMuscleMap.tsx  # Fitness avatar SVG with muscle-group heat overlay
 │       ├── Button.tsx
 │       ├── Card.tsx
 │       ├── ExerciseInfoCard.tsx
 │       ├── FrequencyChart.tsx   # Weekly workout frequency bar chart
 │       ├── MuscleHeatmap.tsx    # SVG silhouette + intensity bars
 │       ├── PRBadge.tsx          # Personal record flash badge
+│       ├── SessionSidePanel.tsx # Slide-in panel for active session details
 │       ├── SessionSummaryPanel.tsx  # Post-session summary with animated score
 │       ├── StreakBadge.tsx
+│       ├── Tabs.tsx             # Underline tab bar primitive (value/onChange API)
+│       ├── TodayCard.tsx        # Today's scheduled workout card (dashboard)
 │       └── WorkoutConfigPanel.tsx
 │
 ├── features/                    # Domain logic, isolated from UI and data access
@@ -293,11 +297,22 @@ All analytics run server-side via RSC in `dashboard/page.tsx` and are passed as 
 
 Three themes: `light`, `dark`, `gym`. Controlled by `data-theme` attribute on `<html>`.
 
-- Theme is stored in `localStorage` and synced to `profiles.theme_preference` in Supabase.
-- `applyTheme()` uses a double-`requestAnimationFrame` trick to strip CSS transitions during the switch (prevents FOUC/flash).
-- An inline `<script>` in `<head>` reads `localStorage` and sets `data-theme` before React hydrates, preventing flash-of-wrong-theme.
+`useTheme(userId?)` hook:
+
+```ts
+// Reads localStorage in useEffect (client-only); never runs on the server.
+// Applies theme by calling document.documentElement.setAttribute('data-theme', theme).
+// Persists to profiles.theme_preference in Supabase when userId is provided.
+const { theme, setTheme, cycleTheme } = useTheme(userId);
+```
+
+Key implementation details:
+
+- `readStoredTheme()` reads `localStorage` synchronously inside `useEffect` — never during SSR, so there is no hydration mismatch.
+- `applyTheme(t)` calls `document.documentElement.setAttribute('data-theme', t)` directly — no double-RAF or transition-suppression wrapper.
+- There is **no inline `<script>`** in `layout.tsx` to pre-set the theme — the theme is applied on the first client-side `useEffect`, which may produce a brief flash on initial load for non-default themes.
 - `globals.css` defines `[data-theme="dark"]` and `[data-theme="gym"]` overrides.
-- The Navbar theme toggle cycles through the three themes.
+- The Profile AccountTab contains a 3-segment toggle (Dark / Light / Gym) backed by `useTheme`.
 
 ---
 
@@ -334,13 +349,25 @@ type NotificationType =
 
 ### 7. Profile Hub (`app/profile/page.tsx`)
 
-The profile page is a three-tab client component (no separate pages):
+The profile page is a fully client-rendered hub with a 2-column desktop layout:
+
+**Left column** (`.social-col-left`):
+- `.profile-header` — large `.avatar-placeholder-lg` initials circle, `.profile-name`, `.profile-handle`, tier badge (`.tag-lime` / `.tag-dark`)
+- `.stats-highlight-card` — Friends / Following / Followers counts fetched via `lib/social/sessions.ts`
+
+**Right column** (`.social-col-right`):
+- Underline `<Tabs>` bar (Account / Social / Alerts)
+- Tab content swapped in-place (no page navigation)
 
 | Tab | Content |
 |---|---|
-| **Account** | Avatar (initials), username edit, change password (`supabase.auth.updateUser`), delete account (password re-auth → `delete_user` RPC) |
-| **Social** | Friend/follower stats, privacy settings, friend search, pending requests, friends list with inline workout-alert composer |
-| **Alerts** | All notifications — gym invites (Accept/Decline), workout alerts, friend request events |
+| **Account** | `.form-input` username edit, 3-segment theme toggle (Dark/Light/Gym) via `useTheme(userId)`, expandable Change Password `.list-row`, Privacy `.list-row`, danger-styled Delete Account action |
+| **Social** | `.form-input` friend search, pending requests, friends list with inline workout-alert composer |
+| **Alerts** | Inline notification rows (not `NotificationItem`) — gym invites with Accept/Decline `.btn btn-secondary`, workout alerts, friend events |
+
+**Rendering notes:**
+- Uses a `mounted` guard (`useState(false)` + `setMounted(true)` in `useEffect`) to prevent auth-conditional rendering mismatches during hydration.
+- `NotificationItem` component is not used in AlertsTab — notifications are rendered inline to avoid the Card nesting overhead.
 
 ---
 
@@ -350,17 +377,32 @@ Programs are stored in **Supabase** (`programs` table, `is_public = true`) rathe
 
 The **`programs/generate`** page calls `POST /api/programs/generate` which uses OpenRouter (model via `OPENROUTER_MODEL` env var) to produce a JSON program conforming to `GeneratedProgramSchema`. The route validates the AI output, filters exercise IDs against the known list, and saves to Supabase.
 
-`ProgramGrid` renders visual cards with:
-- Gradient header (beginner = green, intermediate = amber, advanced = red)
-- Lucide icon derived from equipment/title
-- Stats row: weeks, days/cycle, exercise count
-- Equipment badges
-- Progress bar (week N of N, %) for in-progress programs
-- Section grouping: "In Progress" vs "All Programs"
+`ProgramGrid` (`src/app/programs/ProgramGrid.tsx`) is a fully client-rendered component:
+
+- **Filter pills** — difficulty filter row (`All` / `Beginner` / `Intermediate` / `Advanced`) using `.filter-pill` / `.filter-pill.active` CSS classes
+- **`FeaturedProgramCard`** — hero card for the first in-progress or top recommended program; full-width gradient banner with a large Lucide icon, progress bar, and a primary CTA
+- **`ProgramCard`** — standard grid card; gradient header, stats row (weeks / days / exercises), equipment badges, progress bar for enrolled programs
+- **`AIPlanCard`** — fixed entry at the end of the grid; calls `/api/programs/generate` inline; spinner during generation
+- Section grouping: "In Progress" → "All Programs" (filtered per selected pill)
 
 ---
 
-### 9. PWA Support
+### 9. Hydration Safety
+
+React 18 requires the server-rendered HTML to exactly match the client's first render. Several patterns are used throughout the app to prevent mismatches:
+
+| Pattern | Where | Why |
+|---|---|---|
+| **`mounted` guard** | `Navbar.tsx`, `app/profile/page.tsx` | Auth state is unknown on the server; conditionally renders Sign-In link vs profile avatar. Guard ensures both server and first client render produce the same output (`<a>Sign in</a>`). |
+| **`<Suspense>` wrapper** | `app/camera/page.tsx` | `useSearchParams()` requires a Suspense boundary for Next.js 14 static generation. Inner component extracted; default export wraps it in `<Suspense>`. |
+| **`suppressHydrationWarning`** | Date/time elements in `NotificationItem`, `AchievementBadge`, `CalendarClient`, `DashboardClient` | `toLocaleDateString(undefined)` and `toLocaleString()` produce different strings in Node.js vs the browser locale. Applied only to the element whose direct text is locale-formatted. |
+| **`useState(() => Date.now())`** | `FormScoreChart` in `DashboardClient` | SVG polyline coordinates are computed from `Date.now()`. Without the lazy initializer, the timestamp differs between server render and client hydration. The state initializer captures one value and React reconciles consistently. |
+
+**Rule**: Never call `Date.now()`, `Math.random()`, `localStorage`, `window.*`, or any locale-sensitive formatter in a component's render body outside of a `useEffect` or lazy `useState` initializer.
+
+---
+
+### 10. PWA Support
 
 | File | Purpose |
 |---|---|
@@ -370,7 +412,7 @@ The **`programs/generate`** page calls `POST /api/programs/generate` which uses 
 
 ---
 
-### 10. Supabase Integration
+### 11. Supabase Integration
 
 Two clients:
 
@@ -385,7 +427,7 @@ Two clients:
 
 ---
 
-### 11. AI API Routes
+### 12. AI API Routes
 
 | Route | Purpose |
 |---|---|
@@ -438,6 +480,22 @@ Migrations live in `supabase/migrations/` and are applied in order:
 - **`app/`** — integration layer. Wires `features/`, `lib/`, and `components/` together.
 
 > **Client/server import safety**: `getSupabaseServer()` imports `next/headers` and will break client bundles if imported outside RSC. Always use `getSupabaseClient()` in client components and `lib/*/sessions.ts` files.
+
+---
+
+## ESLint Configuration (`.eslintrc.json`)
+
+```json
+{
+  "extends": ["next/core-web-vitals"],
+  "plugins": ["@typescript-eslint"],
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "warn"
+  }
+}
+```
+
+`@typescript-eslint/eslint-plugin` is installed by Next.js's toolchain but is **not** auto-registered as a plugin — only as a parser. It must be explicitly listed in `plugins[]` for any `@typescript-eslint/*` rule definitions or `eslint-disable` comments to be valid during `next build`.
 
 ---
 
