@@ -163,7 +163,7 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
 
       {/* Unavailable days */}
       <Card title="Unavailable Days">
-        <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 10 }}>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
           Mark days you cannot train. These will be skipped when generating your schedule.
           {savingUnavailable && ' Saving...'}
         </p>
@@ -179,8 +179,8 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
                   padding: '6px 14px',
                   borderRadius: 8,
                   border: `1px solid ${blocked ? 'var(--color-warn)' : 'var(--border)'}`,
-                  background: blocked ? 'rgba(239,68,68,0.12)' : 'var(--surface)',
-                  color: blocked ? 'var(--color-warn)' : 'var(--text)',
+                  background: blocked ? 'color-mix(in srgb, var(--color-warn) 10%, var(--bg-card-raised))' : 'var(--bg-card-raised)',
+                  color: blocked ? 'var(--color-warn)' : 'var(--text-secondary)',
                   fontSize: '0.82rem',
                   cursor: 'pointer',
                 }}
@@ -194,10 +194,10 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
 
       {/* Smart schedule */}
       <Card title="Generate Smart Schedule">
-        <p style={{ fontSize: '0.82rem', color: 'var(--muted)', marginBottom: 10 }}>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
           AI will generate 4 weeks of workout events based on your active programs and availability.
         </p>
-        <Button onClick={() => void handleGenerateSchedule()} disabled={scheduleGenerating}>
+        <Button variant="solid" onClick={() => void handleGenerateSchedule()} disabled={scheduleGenerating}>
           {scheduleGenerating ? 'Generating...' : 'Generate 4-Week Schedule'}
         </Button>
       </Card>
@@ -208,13 +208,13 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
           <input
             value={title}
             onChange={e => setTitle(e.target.value)}
-            style={{ minWidth: 220, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }}
+            style={{ minWidth: 220, padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           />
           <input
             type="date"
             value={scheduledDate}
             onChange={e => setScheduledDate(e.target.value)}
-            style={{ padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: '#0d1629', color: 'var(--text)' }}
+            style={{ padding: 10, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)' }}
           />
           <Button onClick={() => void handleAddEvent()}>Add Workout</Button>
         </div>
@@ -226,7 +226,7 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
           <div className="calendar-shell">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <Button variant="ghost" onClick={goPrevMonth}>Prev</Button>
-              <strong>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</strong>
+              <strong suppressHydrationWarning>{currentMonth.toLocaleString('default', { month: 'long', year: 'numeric' })}</strong>
               <Button variant="ghost" onClick={goNextMonth}>Next</Button>
             </div>
 
@@ -253,11 +253,13 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
                     style={{
                       minHeight: 100,
                       borderRadius: 10,
-                      border: isSelected ? '1px solid var(--accent)' : '1px solid var(--border)',
+                      border: isSelected ? '2px solid var(--accent)' : '1px solid var(--border)',
                       background: isUnavailable
-                        ? 'rgba(239,68,68,0.05)'
-                        : isCurrentMonth ? '#0d1629' : '#0a1222',
-                      color: isCurrentMonth ? 'var(--text)' : 'var(--muted)',
+                        ? 'color-mix(in srgb, var(--color-warn) 5%, var(--bg-card))'
+                        : isSelected
+                          ? 'color-mix(in srgb, var(--accent) 8%, var(--bg-card))'
+                          : isCurrentMonth ? 'var(--bg-card)' : 'var(--bg-app)',
+                      color: isCurrentMonth ? 'var(--text-primary)' : 'var(--text-muted)',
                       textAlign: 'left',
                       padding: 8,
                       cursor: 'pointer',
@@ -277,7 +279,8 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
                             fontSize: 11,
                             borderRadius: 6,
                             padding: '2px 6px',
-                            background: event.is_completed ? 'rgba(77,226,197,0.25)' : 'rgba(79,124,255,0.25)',
+                            background: event.is_completed ? 'var(--accent-muted)' : 'var(--bg-card-raised)',
+                            color: event.is_completed ? 'var(--accent)' : 'var(--text-secondary)',
                           }}
                         >
                           {event.is_completed ? '✅ ' : ''}
@@ -285,7 +288,7 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
                         </span>
                       ))}
                       {dayEvents.length > 2 ? (
-                        <span style={{ fontSize: 11, color: 'var(--muted)' }}>+{dayEvents.length - 2} more</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>+{dayEvents.length - 2} more</span>
                       ) : null}
                     </div>
                   </button>
@@ -296,7 +299,7 @@ export default function CalendarClient({ initialUnavailableDays }: Props) {
         </Card>
       </div>
 
-      {message ? <p style={{ color: 'var(--muted)', marginTop: 8 }}>{message}</p> : null}
+      {message ? <p style={{ color: 'var(--text-secondary)', marginTop: 8 }}>{message}</p> : null}
     </Section>
   );
 }
