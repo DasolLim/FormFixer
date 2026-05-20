@@ -14,7 +14,6 @@ import { fetchDailyMealItems } from '@/lib/nutrition/sessions';
 import type { WorkoutEventRow } from '@/lib/calendar/sessions';
 import type { WeeklyFrequency } from '@/lib/workouts/frequency';
 import FrequencyChart from '@/components/ui/FrequencyChart';
-import AvatarMuscleMap from '@/components/ui/AvatarMuscleMap';
 import { ChevronRight } from 'lucide-react';
 
 function safeExerciseName(exerciseId: string | null | undefined, fallback: string): string {
@@ -55,7 +54,8 @@ function FormScoreChart({ history }: { history: ExerciseFormHistory }) {
   const mostRecent = sessions[sessions.length - 1];
   const trend = mostRecent?.formTrend ?? 'stable';
   const lineColor = trend === 'improving' ? 'var(--color-good)' : trend === 'declining' ? 'var(--color-warn)' : 'var(--color-neutral)';
-  const now = Date.now();
+  // Frozen at first render so server and client produce identical SVG coordinates
+  const [now] = useState(() => Date.now());
   const minDate = now - 30 * 24 * 60 * 60 * 1000;
   const maxDate = now;
   const points = sessions.map(s => ({
@@ -143,7 +143,7 @@ function SessionRow({ session }: { session: WorkoutSessionRow }) {
             {trendIcon(trend)}
           </span>
         )}
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{date}</span>
+        <span suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-muted)' }}>{date}</span>
         <ChevronRight size={14} strokeWidth={1.5} style={{ color: 'var(--text-muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
       </button>
       {expanded && (
@@ -164,23 +164,16 @@ interface DashboardClientProps {
   longestStreak: number;
   todayEvent: WorkoutEventRow | null;
   frequency: WeeklyFrequency[];
-  muscleIntensities: Record<string, number>;
   targetSessionsPerWeek: number;
 }
 
-export function DashboardClient({ currentStreak, longestStreak, todayEvent, frequency, muscleIntensities, targetSessionsPerWeek }: DashboardClientProps) {
+export function DashboardClient({ currentStreak, longestStreak, todayEvent, frequency, targetSessionsPerWeek }: DashboardClientProps) {
   const [sessions, setSessions] = useState<WorkoutSessionRow[]>([]);
   const [formHistory, setFormHistory] = useState<ExerciseFormHistory[]>([]);
   const [programs, setPrograms] = useState<ProgramProgressRow[]>([]);
   const [dailyCalories, setDailyCalories] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // TODO: remove after verifying AvatarMuscleMap key mapping
-  useEffect(() => {
-    console.log('[FormFixer] muscleIntensities (normalized):', muscleIntensities)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   useEffect(() => {
     (async () => {
@@ -301,8 +294,6 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
           }
         </Card>
 
-        {/* 7 — Muscle Activity avatar */}
-        <AvatarMuscleMap muscleData={muscleIntensities} />
       </div>
     </AuthGate>
   );
