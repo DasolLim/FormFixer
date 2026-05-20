@@ -27,6 +27,7 @@
   --color-good:     #D5FF5F;
   --color-warn:     #FF6B6B;
   --color-neutral:  #555555;
+  --danger:         #FF6B6B;
 
   /* ── Borders & Elevation ───────────────────────────────────────────────── */
   --border:         rgba(255,255,255,0.07);
@@ -475,6 +476,13 @@ button:active, a:active {
 
 .btn-dark:hover { background: var(--bg-input); }
 
+.btn-danger {
+  background: var(--danger);
+  color: #fff;
+}
+
+.btn-danger:hover { opacity: 0.88; }
+
 .btn-full { width: 100%; }
 
 /* ─── 11. TAGS / PILLS ────────────────────────────────────────────────────── */
@@ -680,29 +688,42 @@ button:active, a:active {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   height: 56px;
+  padding: 0 20px;
+  border: none;
   border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
   cursor: pointer;
+  font-family: inherit;
+  text-align: left;
   transition: background 0.15s ease;
-  padding: 0 4px;
-  border-radius: 8px;
 }
 
 .list-row:hover { background: var(--bg-input); }
 .list-row:last-child { border-bottom: none; }
 
 .list-row-left {
-  display: flex; align-items: center; gap: 12px;
-  font-size: 15px; color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary);
 }
 
 .list-row-left svg {
-  width: 18px; height: 18px;
+  width: 18px;
+  height: 18px;
   color: var(--text-secondary);
+  flex-shrink: 0;
 }
 
 .list-row-right {
-  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  color: var(--text-secondary);
 }
 
 .list-row-right svg { width: 16px; height: 16px; }
@@ -974,6 +995,27 @@ button:active, a:active {
   color: var(--color-warn);
 }
 
+/* Calibration/status message embedded inside cam-hud-bottom, above stats row */
+.cam-hud-cue-row {
+  width: 100%;
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: var(--text-secondary);
+  border: 1px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+.cam-hud-cue-row.cam-hud-ready {
+  color: var(--accent);
+  border-color: rgba(213,255,95,0.25);
+}
+.cam-hud-cue-row.cam-hud-warn {
+  color: var(--color-warn);
+  border-color: rgba(255,107,107,0.25);
+}
+
 /* Control panel (right column) */
 .cam-control-panel {
   display: flex;
@@ -1195,6 +1237,25 @@ button:active, a:active {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Search results scrollable container — shows exactly 3 rows (54px each + 6px gap) */
+.nutrition-results-scroll {
+  max-height: 174px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent) var(--bg-input);
+}
+.nutrition-results-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.nutrition-results-scroll::-webkit-scrollbar-track {
+  background: var(--bg-input);
+  border-radius: 3px;
+}
+.nutrition-results-scroll::-webkit-scrollbar-thumb {
+  background: var(--accent);
+  border-radius: 3px;
 }
 
 /* Meal log entries */
@@ -1531,6 +1592,16 @@ button:active, a:active {
 }
 
 /* ─── 26. PROFILE ─────────────────────────────────────────────────────────── */
+.profile-page-col {
+  max-width: 680px;
+  margin: 0 auto;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px 20px 80px;
+}
+
 .profile-header {
   display: flex;
   flex-direction: column;
@@ -1542,10 +1613,10 @@ button:active, a:active {
 .avatar-placeholder-lg {
   width: 80px; height: 80px;
   border-radius: 50%;
-  background: var(--accent-muted);
+  background: var(--accent);
   display: flex; align-items: center; justify-content: center;
   font-size: 28px; font-weight: 700;
-  color: var(--accent);
+  color: var(--text-on-lime);
   flex-shrink: 0;
 }
 
@@ -1717,7 +1788,7 @@ button:active, a:active {
   padding: 10px 8px;
   border-radius: 14px;
   cursor: pointer;
-  background: var(--bg-card);
+  background: var(--bg-card-raised);
   border: 1px solid transparent;
   transition: all 0.15s ease;
   flex-shrink: 0;
@@ -1732,7 +1803,7 @@ button:active, a:active {
 .calendar-day-number {
   font-size: 18px;
   font-weight: 700;
-  color: var(--text-primary);
+  color: var(--text-secondary);
 }
 
 .calendar-day-name {
@@ -1755,6 +1826,7 @@ button:active, a:active {
   gap: 14px;
   padding: 14px 0;
   border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
 }
 
 .schedule-item:last-child { border-bottom: none; }
@@ -2157,7 +2229,7 @@ button:active { transform: scale(0.97); }
 
   .social-desktop-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 300px 1fr;
     gap: 24px;
     align-items: start;
   }
