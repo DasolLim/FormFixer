@@ -57,7 +57,7 @@ export default function AchievementBadge({ name, description, iconName, earnedAt
           {description}
         </p>
         {earnedAt && (
-          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+          <p suppressHydrationWarning style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
             Earned {new Date(earnedAt).toLocaleDateString()}
           </p>
         )}

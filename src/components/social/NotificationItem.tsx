@@ -83,7 +83,7 @@ export function NotificationItem({
   return (
     <Card title={labelByType[notification.type]} description={notification.message}>
       {isGymInvite && notification.invite_date && (
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
+        <p suppressHydrationWarning style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '4px 0 0' }}>
           {new Date(notification.invite_date).toLocaleDateString(undefined, {
             weekday: 'short',
             month: 'short',
@@ -104,7 +104,7 @@ export function NotificationItem({
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginTop: 8 }}>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+        <span suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           {new Date(notification.created_at).toLocaleString()}
         </span>
         {notification.read_at ? (

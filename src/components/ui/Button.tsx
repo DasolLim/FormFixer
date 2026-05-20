@@ -5,7 +5,7 @@ type ButtonProps = {
   children: ReactNode;
   href?: string;
   onClick?: MouseEventHandler<HTMLButtonElement>;
-  variant?: 'solid' | 'ghost' | 'dark';
+  variant?: 'solid' | 'secondary' | 'ghost' | 'dark';
   full?: boolean;
   style?: CSSProperties;
   type?: 'button' | 'submit' | 'reset';
@@ -14,8 +14,9 @@ type ButtonProps = {
 };
 
 function variantClass(variant: NonNullable<ButtonProps['variant']>): string {
-  if (variant === 'dark')  return 'btn btn-secondary';
-  if (variant === 'ghost') return 'btn btn-ghost';
+  if (variant === 'secondary') return 'btn btn-secondary';
+  if (variant === 'ghost')     return 'btn btn-ghost';
+  if (variant === 'dark')      return 'btn btn-dark';
   return 'btn btn-primary';
 }
 

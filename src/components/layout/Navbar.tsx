@@ -36,11 +36,13 @@ function getInitials(username: string | null | undefined, email: string | null |
 export function Navbar() {
   const router   = useRouter();
   const pathname = usePathname();
+  const [mounted,   setMounted]   = useState(false);
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [username,  setUsername]  = useState<string | null>(null);
   const [email,     setEmail]     = useState<string | null>(null);
 
   useEffect(() => {
+    setMounted(true);
     let active = true;
     let unsub: (() => void) | null = null;
 
@@ -127,47 +129,45 @@ export function Navbar() {
           })}
         </nav>
 
-        {/* Right: auth + profile avatar */}
+        {/* Right: auth + profile avatar — deferred until after hydration */}
         <div className="navbar-end">
-          {isAuthed ? (
-            <button
-              type="button"
-              className="navbar-auth-btn"
-              onClick={handleLogout}
-              style={{ display: 'none' }}
-            />
-          ) : (
+          {!mounted || !isAuthed ? (
             <Link href="/login" className="navbar-auth-btn">
               Sign in
             </Link>
-          )}
-
-          {/* Profile avatar — always shown when authed */}
-          {isAuthed && (
-            <Link
-              href="/profile"
-              aria-label="Go to profile"
-              title="Profile"
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: '50%',
-                background: isProfileActive ? 'var(--accent)' : 'var(--bg-input)',
-                border: `2px solid ${isProfileActive ? 'var(--accent)' : 'var(--border)'}`,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 700,
-                color: isProfileActive ? 'var(--accent-fg)' : 'var(--text-secondary)',
-                textDecoration: 'none',
-                flexShrink: 0,
-                transition: 'border-color 0.15s, background 0.15s',
-                letterSpacing: '0.02em',
-              }}
-            >
-              {initials}
-            </Link>
+          ) : (
+            <>
+              <button
+                type="button"
+                className="navbar-auth-btn"
+                onClick={handleLogout}
+                style={{ display: 'none' }}
+              />
+              <Link
+                href="/profile"
+                aria-label="Go to profile"
+                title="Profile"
+                style={{
+                  width: 34,
+                  height: 34,
+                  borderRadius: '50%',
+                  background: isProfileActive ? 'var(--accent)' : 'var(--bg-input)',
+                  border: `2px solid ${isProfileActive ? 'var(--accent)' : 'var(--border)'}`,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: isProfileActive ? 'var(--accent-fg)' : 'var(--text-secondary)',
+                  textDecoration: 'none',
+                  flexShrink: 0,
+                  transition: 'border-color 0.15s, background 0.15s',
+                  letterSpacing: '0.02em',
+                }}
+              >
+                {initials}
+              </Link>
+            </>
           )}
         </div>
       </header>
