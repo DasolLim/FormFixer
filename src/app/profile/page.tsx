@@ -1,15 +1,16 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/auth/AuthGate';
 import { Button } from '@/components/ui/Button';
-import { NotificationItem } from '@/components/social/NotificationItem';
 import { FriendRequestCard } from '@/components/social/FriendRequestCard';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { fetchPlanTier } from '@/lib/workouts/sessions';
 import {
+  acceptGymInvite,
   areFriends,
+  declineGymInvite,
   fetchFriendCounts,
   fetchFriends,
   fetchMyProfile,
@@ -23,87 +24,81 @@ import {
   sendFriendAction,
   sendWorkoutAlert,
   unfollowUser,
-  updateMyProfileSettings,
 } from '@/lib/social/sessions';
 import type { NotificationRow, PrivacyMode, ProfileRow } from '@/lib/social/types';
 import {
   User,
   Users,
   Bell,
-  Search,
-  Shield,
-  Lock,
   Trash2,
-  Check,
   ChevronRight,
   Send,
   X,
+  Pencil,
+  LogOut,
+  Lock,
+  Shield,
+  UserSearch,
+  UserPlus,
 } from 'lucide-react';
 
 type Tab = 'account' | 'social' | 'alerts';
 
 // ---------------------------------------------------------------------------
-// Shared small primitives
+// Helpers
 // ---------------------------------------------------------------------------
 
-function SectionHeading({ children }: { children: React.ReactNode }) {
+function avatarBg(name: string): string {
+  const palette = [
+    'rgba(45,65,35,0.9)',
+    'rgba(25,45,75,0.9)',
+    'rgba(75,28,35,0.9)',
+    'rgba(35,55,60,0.9)',
+    'rgba(65,35,65,0.9)',
+    'rgba(60,48,22,0.9)',
+  ];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return palette[Math.abs(h) % palette.length];
+}
+
+function Toast({ text, variant = 'success' }: { text: string; variant?: 'success' | 'error' }) {
   return (
-    <h3
-      style={{
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: '0.06em',
-        textTransform: 'uppercase',
-        color: 'var(--text-muted)',
-        margin: '0 0 12px',
-      }}
-    >
-      {children}
-    </h3>
+    <p style={{ fontSize: 13, margin: '4px 0 0', color: variant === 'error' ? 'var(--danger)' : 'var(--accent)' }}>
+      {text}
+    </p>
   );
 }
 
 function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>{label}</span>
+    <label className="form-label">
+      <span>{label}</span>
       {children}
     </label>
   );
 }
 
-function FormInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+function NotifIconCircle({ type, actorId }: { type: NotificationRow['type']; actorId: string | null }) {
+  if (type === 'friend_request_received' || type === 'friend_request_accepted') {
+    return (
+      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--accent-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <UserPlus size={20} strokeWidth={1.5} style={{ color: 'var(--accent)' }} />
+      </div>
+    );
+  }
+  if (type === 'workout_alert') {
+    return (
+      <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(99,91,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+        <Bell size={20} strokeWidth={1.5} style={{ color: '#6366f1' }} />
+      </div>
+    );
+  }
+  const initials = (actorId ?? 'GI').slice(0, 2).toUpperCase();
   return (
-    <input
-      {...props}
-      style={{
-        height: 44,
-        padding: '0 14px',
-        borderRadius: 10,
-        border: '1px solid var(--border)',
-        background: 'var(--bg-input)',
-        color: 'var(--text-primary)',
-        fontSize: 14,
-        outline: 'none',
-        width: '100%',
-        boxSizing: 'border-box',
-        ...props.style,
-      }}
-    />
-  );
-}
-
-function Toast({ text, variant = 'success' }: { text: string; variant?: 'success' | 'error' }) {
-  return (
-    <p
-      style={{
-        fontSize: 13,
-        margin: '4px 0 0',
-        color: variant === 'error' ? 'var(--color-danger, #ef4444)' : 'var(--accent)',
-      }}
-    >
-      {text}
-    </p>
+    <div style={{ width: 44, height: 44, borderRadius: '50%', background: avatarBg(actorId ?? 'gym'), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
+      {initials}
+    </div>
   );
 }
 
@@ -115,7 +110,6 @@ function AccountTab({
   userId,
   email,
   username,
-  tier,
   onUsernameChange,
 }: {
   userId: string;
@@ -127,16 +121,25 @@ function AccountTab({
   const router = useRouter();
   const supabase = getSupabaseClient();
 
-  const [displayName, setDisplayName] = useState(username);
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName]                 = useState(username);
+  const [privacyMode, setPrivacyMode]                 = useState<PrivacyMode>('public');
+  const [newPassword, setNewPassword]                 = useState('');
+  const [confirmPassword, setConfirmPassword]         = useState('');
   const [deleteConfirmPassword, setDeleteConfirmPassword] = useState('');
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [message, setMessage] = useState('');
-  const [errMsg, setErrMsg] = useState('');
+  const [showDeleteConfirm, setShowDeleteConfirm]     = useState(false);
+  const [showPasswordForm, setShowPasswordForm]       = useState(false);
+  const [message, setMessage]                         = useState('');
+  const [errMsg, setErrMsg]                           = useState('');
   const [, startTransition] = useTransition();
 
   useEffect(() => { setDisplayName(username); }, [username]);
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetchMyProfile(userId, null);
+      if (!res.error && res.data) setPrivacyMode(res.data.privacy_mode);
+    })();
+  }, [userId]);
 
   async function handleSaveUsername() {
     setMessage(''); setErrMsg('');
@@ -149,6 +152,17 @@ function AccountTab({
     setMessage('Username updated.');
   }
 
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push('/login');
+  }
+
+  async function handleTogglePrivacy() {
+    const next: PrivacyMode = privacyMode === 'public' ? 'private' : 'public';
+    await supabase.from('profiles').update({ privacy_mode: next }).eq('id', userId);
+    setPrivacyMode(next);
+  }
+
   async function handleChangePassword() {
     setMessage(''); setErrMsg('');
     if (!newPassword) { setErrMsg('Enter a new password.'); return; }
@@ -157,6 +171,7 @@ function AccountTab({
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) { setErrMsg(error.message); return; }
     setNewPassword(''); setConfirmPassword('');
+    setShowPasswordForm(false);
     setMessage('Password updated successfully.');
   }
 
@@ -164,13 +179,11 @@ function AccountTab({
     setMessage(''); setErrMsg('');
     if (!deleteConfirmPassword) { setErrMsg('Enter your password to confirm deletion.'); return; }
     startTransition(async () => {
-      // Re-authenticate then delete
       const { error: signInError } = await supabase.auth.signInWithPassword({ email, password: deleteConfirmPassword });
       if (signInError) { setErrMsg('Incorrect password.'); return; }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { error: deleteError } = await (supabase as any).rpc('delete_user');
       if (deleteError) {
-        // Fallback: sign out and let the user know
         await supabase.auth.signOut();
         setErrMsg('Account deletion failed — contact support.');
         return;
@@ -180,164 +193,116 @@ function AccountTab({
     });
   }
 
-  const initials = (displayName || email || '?').slice(0, 2).toUpperCase();
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-      {/* Avatar */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '24px 0 8px' }}>
-        <div
-          style={{
-            width: 80,
-            height: 80,
-            borderRadius: '50%',
-            background: 'var(--accent)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 28,
-            fontWeight: 700,
-            color: 'var(--accent-fg, #fff)',
-          }}
-        >
-          {initials}
-        </div>
-        <div style={{ textAlign: 'center' }}>
-          <p style={{ fontSize: 17, fontWeight: 600, color: 'var(--text-primary)', margin: '0 0 2px' }}>
-            {displayName || 'Set a username'}
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>{email}</p>
-        </div>
-        <span
-          style={{
-            padding: '3px 12px',
-            borderRadius: 999,
-            background: tier === 'pro' ? 'var(--accent)' : 'var(--bg-input)',
-            color: tier === 'pro' ? 'var(--accent-fg, #fff)' : 'var(--text-secondary)',
-            fontSize: 12,
-            fontWeight: 600,
-          }}
-        >
-          {tier === 'pro' ? 'Pro' : 'Free plan'}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+      {/* Display Name */}
+      <div className="card" style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+          Display Name
         </span>
+        <div style={{ position: 'relative' }}>
+          <input
+            className="form-input"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="username (3–20 chars)"
+            maxLength={20}
+            style={{ paddingRight: 44 }}
+          />
+          <Pencil size={15} strokeWidth={1.5} style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
+        </div>
+        <button className="btn btn-primary btn-full" onClick={handleSaveUsername}>
+          Save
+        </button>
+        {message && <Toast text={message} />}
+        {errMsg   && <Toast text={errMsg} variant="error" />}
       </div>
 
-      {/* Username */}
-      <section>
-        <SectionHeading>Display Name</SectionHeading>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <FieldGroup label="Username">
-            <FormInput
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="username (3–20 chars)"
-              maxLength={20}
-            />
-          </FieldGroup>
-          <Button onClick={handleSaveUsername} full>Save Username</Button>
-        </div>
-      </section>
+      {/* Settings rows */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
 
-      {/* Change password */}
-      <section>
-        <SectionHeading>Change Password</SectionHeading>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <FieldGroup label="New Password">
-            <FormInput
-              type="password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="Min 8 characters"
-              autoComplete="new-password"
-            />
-          </FieldGroup>
-          <FieldGroup label="Confirm Password">
-            <FormInput
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              placeholder="Repeat new password"
-              autoComplete="new-password"
-            />
-          </FieldGroup>
-          <Button onClick={handleChangePassword} full>Update Password</Button>
-        </div>
-      </section>
+        <button type="button" className="list-row" onClick={handleLogout}>
+          <span className="list-row-left">
+            <LogOut size={18} />
+            Log out
+          </span>
+          <span className="list-row-right"><ChevronRight size={16} /></span>
+        </button>
 
-      {message && <Toast text={message} />}
-      {errMsg  && <Toast text={errMsg}  variant="error" />}
+        <button type="button" className="list-row" onClick={() => setShowPasswordForm(v => !v)}>
+          <span className="list-row-left">
+            <Lock size={18} />
+            Change password
+          </span>
+          <span className="list-row-right">
+            <ChevronRight size={16} style={{ transform: showPasswordForm ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }} />
+          </span>
+        </button>
+
+        {showPasswordForm && (
+          <div style={{ padding: '4px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <FieldGroup label="New Password">
+              <input className="form-input" type="password" value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)} placeholder="Min 8 characters" autoComplete="new-password" />
+            </FieldGroup>
+            <FieldGroup label="Confirm Password">
+              <input className="form-input" type="password" value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" />
+            </FieldGroup>
+            <button className="btn btn-primary btn-full" onClick={handleChangePassword}>
+              Update Password
+            </button>
+          </div>
+        )}
+
+        <button type="button" className="list-row" onClick={handleTogglePrivacy}>
+          <span className="list-row-left">
+            <Shield size={18} />
+            Privacy mode
+          </span>
+          <span className="list-row-right">
+            <span className="tag tag-dark" style={{ fontSize: 12, height: 26, padding: '0 10px' }}>
+              {privacyMode === 'private' ? 'Private' : 'Public'}
+            </span>
+          </span>
+        </button>
+
+      </div>
 
       {/* Danger zone */}
-      <section>
-        <SectionHeading>Danger Zone</SectionHeading>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {!showDeleteConfirm ? (
-          <button
-            onClick={() => setShowDeleteConfirm(true)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '10px 16px',
-              borderRadius: 10,
-              border: '1px solid var(--color-danger, #ef4444)',
-              background: 'transparent',
-              color: 'var(--color-danger, #ef4444)',
-              fontSize: 14,
-              fontWeight: 500,
-              cursor: 'pointer',
-              width: '100%',
-            }}
-          >
-            <Trash2 size={16} />
-            Delete account
+          <button type="button" className="list-row" onClick={() => setShowDeleteConfirm(true)}>
+            <span className="list-row-left" style={{ color: 'var(--danger)' }}>
+              <Trash2 size={18} style={{ color: 'var(--danger)' }} />
+              Delete account
+            </span>
+            <span className="list-row-right" style={{ color: 'var(--danger)' }}>
+              <ChevronRight size={16} />
+            </span>
           </button>
         ) : (
-          <div
-            style={{
-              padding: 16,
-              borderRadius: 12,
-              border: '1px solid var(--color-danger, #ef4444)',
-              background: 'var(--bg-card)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10,
-            }}
-          >
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-              This is permanent. Enter your password to confirm.
+          <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <p style={{ fontSize: 14, color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+              This is permanent and cannot be undone. Enter your password to confirm.
             </p>
-            <FormInput
-              type="password"
-              value={deleteConfirmPassword}
+            <input className="form-input" type="password" value={deleteConfirmPassword}
               onChange={(e) => setDeleteConfirmPassword(e.target.value)}
-              placeholder="Your current password"
-              autoComplete="current-password"
-            />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                onClick={handleDeleteAccount}
-                style={{
-                  flex: 1, height: 40, borderRadius: 10, border: 'none',
-                  background: 'var(--color-danger, #ef4444)', color: '#fff',
-                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                }}
-              >
+              placeholder="Your current password" autoComplete="current-password" />
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button type="button" className="btn btn-danger btn-full" onClick={handleDeleteAccount}>
                 Permanently Delete
               </button>
-              <button
-                onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmPassword(''); }}
-                style={{
-                  flex: 1, height: 40, borderRadius: 10,
-                  border: '1px solid var(--border)', background: 'transparent',
-                  color: 'var(--text-secondary)', fontSize: 13, cursor: 'pointer',
-                }}
-              >
+              <button type="button" className="btn btn-ghost btn-full" onClick={() => { setShowDeleteConfirm(false); setDeleteConfirmPassword(''); }}>
                 Cancel
               </button>
             </div>
+            {errMsg && <Toast text={errMsg} variant="error" />}
           </div>
         )}
-      </section>
+      </div>
+
     </div>
   );
 }
@@ -347,50 +312,28 @@ function AccountTab({
 // ---------------------------------------------------------------------------
 
 function SocialTab({ userId }: { userId: string }) {
-  const [privacyMode, setPrivacyMode] = useState<PrivacyMode>('public');
-  const [username, setUsername] = useState('');
-  const [followers, setFollowers] = useState(0);
-  const [following, setFollowing] = useState(0);
-  const [friends, setFriends] = useState<Array<{ id: string; profile: ProfileRow | null }>>([]);
-  const [pending, setPending] = useState<Array<{ id: string; requester_id: string }>>([]);
-  const [pendingProfiles, setPendingProfiles] = useState<Record<string, ProfileRow>>({});
-  const [outgoingIds, setOutgoingIds] = useState<Set<string>>(new Set());
-  const [search, setSearch] = useState('');
-  const [results, setResults] = useState<ProfileRow[]>([]);
-  const [alertTargetId, setAlertTargetId] = useState<string | null>(null);
-  const [alertText, setAlertText] = useState('');
+  const [friends, setFriends]                         = useState<Array<{ id: string; profile: ProfileRow | null }>>([]);
+  const [pending, setPending]                         = useState<Array<{ id: string; requester_id: string }>>([]);
+  const [pendingProfiles, setPendingProfiles]         = useState<Record<string, ProfileRow>>({});
+  const [outgoingIds, setOutgoingIds]                 = useState<Set<string>>(new Set());
+  const [search, setSearch]                           = useState('');
+  const [results, setResults]                         = useState<ProfileRow[]>([]);
+  const [alertTargetId, setAlertTargetId]             = useState<string | null>(null);
+  const [alertText, setAlertText]                     = useState('');
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
-  const [message, setMessage] = useState('');
-  const [errMsg, setErrMsg] = useState('');
+  const [message, setMessage]                         = useState('');
+  const [errMsg, setErrMsg]                           = useState('');
 
-  const friendIds = useMemo(
-    () => new Set(friends.map((f) => f.profile?.id).filter(Boolean) as string[]),
-    [friends]
-  );
+  const friendIds = new Set(friends.map((f) => f.profile?.id).filter(Boolean) as string[]);
 
   async function load(uid: string) {
-    const [profileRes, countRes, friendsRes, pendingRes, outgoingRes] = await Promise.all([
-      fetchMyProfile(uid, null),
-      fetchFriendCounts(uid),
+    const [friendsRes, pendingRes, outgoingRes] = await Promise.all([
       fetchFriends(uid),
       fetchPendingRequests(uid),
       fetchOutgoingPendingRequests(uid),
     ]);
-    if (!profileRes.error && profileRes.data) {
-      setUsername(profileRes.data.username ?? '');
-      setPrivacyMode(profileRes.data.privacy_mode);
-    }
-    if (!countRes.error) {
-      setFollowers(countRes.data.followers);
-      setFollowing(countRes.data.following);
-    }
     if (!friendsRes.error) {
-      setFriends(
-        (friendsRes.data as Array<{ id: string; profile: ProfileRow | null }>).map((r) => ({
-          id: r.id,
-          profile: r.profile,
-        }))
-      );
+      setFriends((friendsRes.data as Array<{ id: string; profile: ProfileRow | null }>).map((r) => ({ id: r.id, profile: r.profile })));
     }
     if (!pendingRes.error) {
       setPending(pendingRes.data.map((r: { id: string; requester_id: string }) => r));
@@ -409,14 +352,6 @@ function SocialTab({ userId }: { userId: string }) {
 
   useEffect(() => { load(userId); }, [userId]);
 
-  async function handleSaveSettings() {
-    setMessage(''); setErrMsg('');
-    const res = await updateMyProfileSettings({ userId, username, privacyMode });
-    if (res.error) { setErrMsg(res.error.message); return; }
-    setMessage('Settings saved.');
-    load(userId);
-  }
-
   async function handleSearch() {
     setMessage(''); setErrMsg('');
     const res = await searchProfilesByUsername(userId, search);
@@ -430,8 +365,7 @@ function SocialTab({ userId }: { userId: string }) {
     if (isFriend.value) {
       const r = await unfollowUser({ currentUserId: userId, targetUserId: target.id });
       if (r.error) { setErrMsg(r.error.message); return; }
-      setMessage('Unfollowed.');
-      load(userId); return;
+      setMessage('Unfollowed.'); load(userId); return;
     }
     const r = await sendFriendAction({
       currentUserId: userId,
@@ -468,330 +402,141 @@ function SocialTab({ userId }: { userId: string }) {
     try {
       await sendWorkoutAlert(userId, [alertTargetId], alertText.trim());
       setMessage('Workout alert sent!');
-      setAlertTargetId(null);
-      setAlertText('');
+      setAlertTargetId(null); setAlertText('');
     } catch (e) {
       setErrMsg(e instanceof Error ? e.message : 'Failed to send alert');
     }
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-      {/* Stats */}
-      <div
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 1fr)',
-          gap: 12,
-        }}
-      >
-        {[
-          { label: 'Friends', value: friends.length },
-          { label: 'Following', value: following },
-          { label: 'Followers', value: followers },
-        ].map(({ label, value }) => (
-          <div
-            key={label}
-            style={{
-              padding: '14px 0',
-              borderRadius: 12,
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              textAlign: 'center',
-            }}
-          >
-            <p style={{ fontSize: 22, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 2px' }}>
-              {value}
-            </p>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>{label}</p>
-          </div>
-        ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: '0 0 4px' }}>Friends</h2>
+
+      {/* Search bar */}
+      <div style={{ position: 'relative' }}>
+        <UserSearch size={16} strokeWidth={1.5} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-secondary)', pointerEvents: 'none' }} />
+        <input
+          className="form-input"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Find friends by username…"
+          style={{ paddingLeft: 40 }}
+          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+        />
       </div>
 
-      {/* Privacy settings */}
-      <section>
-        <SectionHeading>Privacy &amp; Settings</SectionHeading>
-        <div
-          style={{
-            background: 'var(--bg-card)',
-            border: '1px solid var(--border)',
-            borderRadius: 12,
-            padding: 16,
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 12,
-          }}
-        >
-          <FieldGroup label="Username">
-            <FormInput
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="username (3–20 chars)"
-              maxLength={20}
-            />
-          </FieldGroup>
-          <FieldGroup label="Account Privacy">
-            <select
-              value={privacyMode}
-              onChange={(e) => setPrivacyMode(e.target.value as PrivacyMode)}
-              style={{
-                height: 44,
-                padding: '0 14px',
-                borderRadius: 10,
-                border: '1px solid var(--border)',
-                background: 'var(--bg-input)',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-              }}
-            >
-              <option value="public">Public (instant follow)</option>
-              <option value="private">Private (request + accept)</option>
-            </select>
-          </FieldGroup>
-          <Button onClick={handleSaveSettings} full>Save Settings</Button>
-        </div>
-      </section>
+      {errMsg   && <Toast text={errMsg} variant="error" />}
+      {message  && <Toast text={message} />}
 
-      {/* Search & follow */}
-      <section>
-        <SectionHeading>Find &amp; Add Friends</SectionHeading>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-          <FormInput
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by username…"
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <button
-            onClick={handleSearch}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 10,
-              border: '1px solid var(--border)',
-              background: 'var(--bg-input)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-            }}
-          >
-            <Search size={18} />
-          </button>
-        </div>
-        {results.length > 0 && (
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              overflow: 'hidden',
-            }}
-          >
-            {results.map((profile, i) => {
-              const isPrivate = typeof profile.is_private === 'boolean'
-                ? profile.is_private
-                : profile.privacy_mode === 'private';
-              const actionLabel = friendIds.has(profile.id)
-                ? 'Following'
-                : outgoingIds.has(profile.id)
-                  ? 'Requested'
-                  : 'Follow';
-              return (
-                <div
-                  key={profile.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 16px',
-                    borderBottom: i < results.length - 1 ? '1px solid var(--border)' : 'none',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: '50%',
-                      background: 'var(--bg-input)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: 'var(--text-secondary)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {(profile.username || '?').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 500, margin: '0 0 2px', color: 'var(--text-primary)' }}>
-                      {profile.username ?? 'Unnamed'}
-                    </p>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                      {isPrivate ? 'Private' : 'Public'}
-                    </p>
-                  </div>
-                  <Button
-                    variant={actionLabel === 'Following' ? 'ghost' : 'solid'}
-                    onClick={() => handleFriendAction(profile)}
-                    disabled={actionLabel === 'Requested'}
-                    style={{ height: 34, padding: '0 14px', fontSize: 13, flexShrink: 0 }}
-                  >
-                    {actionLabel}
-                  </Button>
+      {/* Search results */}
+      {results.length > 0 && (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {results.map((profile, i) => {
+            const isPrivate = typeof profile.is_private === 'boolean'
+              ? profile.is_private
+              : profile.privacy_mode === 'private';
+            const actionLabel = friendIds.has(profile.id)
+              ? 'Following'
+              : outgoingIds.has(profile.id)
+                ? 'Requested'
+                : 'Follow';
+            return (
+              <div key={profile.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < results.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: avatarBg(profile.username ?? 'u'), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>
+                  {(profile.username || '?').slice(0, 2).toUpperCase()}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, margin: '0 0 2px', color: 'var(--text-primary)' }}>{profile.username ?? 'Unnamed'}</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>{isPrivate ? 'Private account' : 'Public account'}</p>
+                </div>
+                <Button
+                  variant={actionLabel === 'Following' ? 'ghost' : 'solid'}
+                  onClick={() => handleFriendAction(profile)}
+                  disabled={actionLabel === 'Requested'}
+                  style={{ height: 34, padding: '0 14px', fontSize: 13, flexShrink: 0 }}
+                >
+                  {actionLabel}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Pending requests */}
       {pending.length > 0 && (
-        <section>
-          <SectionHeading>Pending Requests ({pending.length})</SectionHeading>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {pending.map((req) => (
-              <FriendRequestCard
-                key={req.id}
-                requester={pendingProfiles[req.requester_id] ?? null}
-                onAccept={() => handleRespond(req.id, req.requester_id, true)}
-                onDecline={() => handleRespond(req.id, req.requester_id, false)}
-                disabled={processingRequestId === req.id}
-              />
-            ))}
-          </div>
-        </section>
+        <div className="card" style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: '0 0 4px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Pending ({pending.length})
+          </p>
+          {pending.map((req) => (
+            <FriendRequestCard
+              key={req.id}
+              requester={pendingProfiles[req.requester_id] ?? null}
+              onAccept={() => handleRespond(req.id, req.requester_id, true)}
+              onDecline={() => handleRespond(req.id, req.requester_id, false)}
+              disabled={processingRequestId === req.id}
+            />
+          ))}
+        </div>
       )}
 
       {/* Friends list */}
-      <section>
-        <SectionHeading>Friends ({friends.length})</SectionHeading>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {friends.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
+          <p style={{ padding: '16px 20px', fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>
             No friends yet — search above.
           </p>
         ) : (
-          <div
-            style={{
-              background: 'var(--bg-card)',
-              border: '1px solid var(--border)',
-              borderRadius: 12,
-              overflow: 'hidden',
-            }}
-          >
-            {friends.map((f, i) => {
-              if (!f.profile) return null;
-              const p = f.profile;
-              return (
-                <div
-                  key={f.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 12,
-                    padding: '12px 16px',
-                    borderBottom: i < friends.length - 1 ? '1px solid var(--border)' : 'none',
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: '50%',
-                      background: 'var(--bg-input)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 14,
-                      fontWeight: 700,
-                      color: 'var(--text-secondary)',
-                      flexShrink: 0,
-                    }}
-                  >
-                    {(p.username || '?').slice(0, 2).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 500, margin: 0, color: 'var(--text-primary)' }}>
-                      {p.username ?? 'Unnamed'}
-                    </p>
-                    <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
-                      {p.privacy_mode === 'private' ? 'Private' : 'Public'}
-                    </p>
-                  </div>
-                  {alertTargetId === p.id ? (
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input
-                        value={alertText}
-                        onChange={(e) => setAlertText(e.target.value)}
-                        placeholder="Alert message…"
-                        maxLength={120}
-                        style={{
-                          height: 34,
-                          padding: '0 10px',
-                          borderRadius: 8,
-                          border: '1px solid var(--border)',
-                          background: 'var(--bg-input)',
-                          color: 'var(--text-primary)',
-                          fontSize: 13,
-                          width: 160,
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSendAlert()}
-                        autoFocus
-                      />
-                      <button
-                        onClick={handleSendAlert}
-                        title="Send"
-                        style={{
-                          width: 34, height: 34, borderRadius: 8,
-                          border: 'none', background: 'var(--accent)',
-                          color: 'var(--accent-fg, #fff)', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        <Send size={14} />
-                      </button>
-                      <button
-                        onClick={() => { setAlertTargetId(null); setAlertText(''); }}
-                        title="Cancel"
-                        style={{
-                          width: 34, height: 34, borderRadius: 8,
-                          border: '1px solid var(--border)', background: 'transparent',
-                          color: 'var(--text-muted)', cursor: 'pointer',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        }}
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setAlertTargetId(p.id)}
-                      title="Send workout alert"
-                      style={{
-                        height: 34, padding: '0 12px', borderRadius: 8,
-                        border: '1px solid var(--border)', background: 'var(--bg-input)',
-                        color: 'var(--text-secondary)', fontSize: 12, fontWeight: 500,
-                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                      }}
-                    >
-                      <Bell size={13} />
-                      Alert
-                    </button>
-                  )}
+          friends.map((f, i) => {
+            if (!f.profile) return null;
+            const p = f.profile;
+            const bg = avatarBg(p.username ?? 'u');
+            return (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', borderBottom: i < friends.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', flexShrink: 0 }}>
+                  {(p.username || '?').slice(0, 2).toUpperCase()}
                 </div>
-              );
-            })}
-          </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 15, fontWeight: 600, margin: 0, color: 'var(--text-primary)' }}>{p.username ?? 'Unnamed'}</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
+                    {p.privacy_mode === 'private' ? 'Private account' : 'Public account'}
+                  </p>
+                </div>
+                {alertTargetId === p.id ? (
+                  <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input
+                      value={alertText}
+                      onChange={(e) => setAlertText(e.target.value)}
+                      placeholder="Alert message…"
+                      maxLength={120}
+                      style={{ height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, width: 160, fontFamily: 'inherit' }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSendAlert()}
+                      autoFocus
+                    />
+                    <button type="button" onClick={handleSendAlert} title="Send"
+                      style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'var(--accent)', color: 'var(--text-on-lime)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Send size={14} />
+                    </button>
+                    <button type="button" onClick={() => { setAlertTargetId(null); setAlertText(''); }} title="Cancel"
+                      style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => setAlertTargetId(p.id)}
+                    className="btn btn-ghost"
+                    style={{ height: 34, padding: '0 12px', fontSize: 12 }}>
+                    <Bell size={13} /> Alert
+                  </button>
+                )}
+              </div>
+            );
+          })
         )}
-      </section>
+      </div>
 
-      {message && <Toast text={message} />}
-      {errMsg  && <Toast text={errMsg} variant="error" />}
     </div>
   );
 }
@@ -813,58 +558,172 @@ function AlertsTab({ userId }: { userId: string }) {
   useEffect(() => { load(userId); }, [userId]);
 
   async function handleMarkRead(id: string) {
-    const res = await markNotificationRead(id);
-    if (res.error) { setErrMsg(res.error.message); return; }
+    await markNotificationRead(id);
+    load(userId);
+  }
+
+  async function handleFriendRequestNotif(n: NotificationRow, accept: boolean) {
+    await respondToFriendRequest({
+      currentUserId: userId,
+      request: { id: n.id, requester_id: n.actor_id ?? '', receiver_id: userId, status: 'pending', created_at: n.created_at, responded_at: null },
+      accept,
+    });
+    load(userId);
+  }
+
+  async function handleGymInviteAccept(notifId: string) {
+    await acceptGymInvite(notifId, userId);
+    load(userId);
+  }
+
+  async function handleGymInviteDecline(notifId: string) {
+    await declineGymInvite(notifId);
     load(userId);
   }
 
   if (errMsg) return <Toast text={errMsg} variant="error" />;
 
-  if (notifications.length === 0) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '48px 0',
-          gap: 12,
-        }}
-      >
-        <div
-          style={{
-            width: 56,
-            height: 56,
-            borderRadius: '50%',
-            background: 'var(--bg-card)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Bell size={24} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
-        </div>
-        <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>
-          All caught up
-        </p>
-        <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>
-          No notifications yet.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {notifications.map((n) => (
-        <NotificationItem
-          key={n.id}
-          notification={n}
-          userId={userId}
-          onMarkRead={() => handleMarkRead(n.id)}
-        />
-      ))}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>Alerts &amp; notifications</h2>
+
+      {notifications.length === 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', gap: 12 }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--bg-card)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Bell size={24} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} />
+          </div>
+          <p style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', margin: 0 }}>All caught up</p>
+          <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>No notifications yet.</p>
+        </div>
+      ) : (
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+          {notifications.map((n, i) => {
+            const isLast = i === notifications.length - 1;
+            const rowStyle: React.CSSProperties = {
+              display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 20px',
+              borderBottom: isLast ? 'none' : '1px solid var(--border)',
+              background: n.read_at ? 'transparent' : 'color-mix(in srgb, var(--accent) 4%, var(--bg-card))',
+            };
+
+            if (n.type === 'friend_request_received') {
+              return (
+                <div key={n.id} style={rowStyle}>
+                  <NotifIconCircle type={n.type} actorId={n.actor_id} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '0 0 4px', lineHeight: 1.4 }}>
+                      <strong>{(n.actor_id ?? '').slice(0, 8)}</strong> sent a friend request
+                    </p>
+                    <p suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+                      {new Date(n.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </p>
+                    {!n.read_at && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" className="btn btn-secondary"
+                          style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+                          onClick={() => handleFriendRequestNotif(n, true)}>
+                          Accept
+                        </button>
+                        <button type="button" className="btn btn-ghost"
+                          style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+                          onClick={() => handleFriendRequestNotif(n, false)}>
+                          Decline
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (n.type === 'gym_invite') {
+              const canAct = n.invite_status === null || n.invite_status === undefined;
+              return (
+                <div key={n.id} style={rowStyle}>
+                  <NotifIconCircle type={n.type} actorId={n.actor_id} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '0 0 4px', lineHeight: 1.4 }}>
+                      <strong>{(n.actor_id ?? '').slice(0, 8)}</strong> — Gym invite
+                    </p>
+                    {(n.invite_exercise_id ?? n.invite_date) && (
+                      <p suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
+                        {n.invite_exercise_id?.replace(/_/g, ' ')}
+                        {n.invite_exercise_id && n.invite_date && ' · '}
+                        {n.invite_date && new Date(n.invite_date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
+                      </p>
+                    )}
+                    {canAct && (
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button type="button" className="btn btn-secondary"
+                          style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+                          onClick={() => handleGymInviteAccept(n.id)}>
+                          Accept
+                        </button>
+                        <button type="button" className="btn btn-ghost"
+                          style={{ height: 32, padding: '0 14px', fontSize: 13 }}
+                          onClick={() => handleGymInviteDecline(n.id)}>
+                          Decline
+                        </button>
+                      </div>
+                    )}
+                    {n.invite_status === 'accepted' && (
+                      <span style={{ fontSize: 12, color: 'var(--accent)' }}>✓ Accepted</span>
+                    )}
+                    {n.invite_status === 'declined' && (
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Declined</span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+
+            if (n.type === 'workout_alert') {
+              return (
+                <div key={n.id} style={rowStyle}>
+                  <NotifIconCircle type={n.type} actorId={n.actor_id} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '0 0 4px', lineHeight: 1.4 }}>
+                      <strong>{(n.actor_id ?? '').slice(0, 8)}</strong> sent a workout alert
+                    </p>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 4px', fontStyle: 'italic' }}>
+                      &ldquo;{n.message}&rdquo;
+                    </p>
+                    <p suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                      {new Date(n.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                  {!n.read_at && (
+                    <button type="button" className="btn btn-ghost"
+                      style={{ height: 32, padding: '0 12px', fontSize: 12, flexShrink: 0 }}
+                      onClick={() => handleMarkRead(n.id)}>
+                      Dismiss
+                    </button>
+                  )}
+                </div>
+              );
+            }
+
+            // friend_request_accepted + fallback
+            return (
+              <div key={n.id} style={rowStyle}>
+                <NotifIconCircle type={n.type} actorId={n.actor_id} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: 13, color: 'var(--text-primary)', margin: '0 0 4px', lineHeight: 1.4 }}>{n.message}</p>
+                  <p suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>
+                    {new Date(n.created_at).toLocaleString()}
+                  </p>
+                </div>
+                {!n.read_at && (
+                  <button type="button" className="btn btn-ghost"
+                    style={{ height: 32, padding: '0 12px', fontSize: 12, flexShrink: 0 }}
+                    onClick={() => handleMarkRead(n.id)}>
+                    Dismiss
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -874,11 +733,14 @@ function AlertsTab({ userId }: { userId: string }) {
 // ---------------------------------------------------------------------------
 
 export default function ProfilePage() {
-  const [userId,   setUserId]   = useState<string | null>(null);
-  const [email,    setEmail]    = useState('');
-  const [username, setUsername] = useState('');
-  const [tier,     setTier]     = useState<'free' | 'pro'>('free');
-  const [tab,      setTab]      = useState<Tab>('account');
+  const [userId,      setUserId]      = useState<string | null>(null);
+  const [email,       setEmail]       = useState('');
+  const [username,    setUsername]    = useState('');
+  const [tier,        setTier]        = useState<'free' | 'pro'>('free');
+  const [tab,         setTab]         = useState<Tab>('account');
+  const [friendCount, setFriendCount] = useState(0);
+  const [following,   setFollowing]   = useState(0);
+  const [followers,   setFollowers]   = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -887,55 +749,78 @@ export default function ProfilePage() {
       if (!data.user) return;
       setUserId(data.user.id);
       setEmail(data.user.email ?? '');
-      const [planTier, profileRes] = await Promise.all([
+
+      const [planTier, profileRes, countRes] = await Promise.all([
         fetchPlanTier(data.user.id),
         fetchMyProfile(data.user.id, data.user.email ?? null),
+        fetchFriendCounts(data.user.id),
       ]);
       setTier(planTier);
-      if (!profileRes.error && profileRes.data) {
-        setUsername(profileRes.data.username ?? '');
+      if (!profileRes.error && profileRes.data) setUsername(profileRes.data.username ?? '');
+      if (!countRes.error) {
+        const friendsRes = await fetchFriends(data.user.id);
+        if (!friendsRes.error) setFriendCount(friendsRes.data.length);
+        setFollowing(countRes.data.following);
+        setFollowers(countRes.data.followers);
       }
     })();
   }, []);
 
+  const initials = (username || email || '?').slice(0, 2).toUpperCase();
+
   const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode }> = [
-    { id: 'account', label: 'Account', icon: <User  size={16} /> },
-    { id: 'social',  label: 'Social',  icon: <Users size={16} /> },
-    { id: 'alerts',  label: 'Alerts',  icon: <Bell  size={16} /> },
+    { id: 'account', label: 'Account', icon: <User  size={15} /> },
+    { id: 'social',  label: 'Social',  icon: <Users size={15} /> },
+    { id: 'alerts',  label: 'Alerts',  icon: <Bell  size={15} /> },
   ];
 
   return (
     <AuthGate>
-      <div style={{ maxWidth: 560, margin: '0 auto', padding: '0 20px 80px' }}>
+      <div className="profile-page-col">
+
+        {/* Profile header */}
+        <div className="profile-header">
+          <div className="avatar-placeholder-lg">{initials}</div>
+          <p className="profile-name">{username || 'Set a username'}</p>
+          <p className="profile-handle">{email}</p>
+          <span className={tier === 'pro' ? 'tag tag-lime' : 'tag tag-dark'}>
+            {tier === 'pro' ? 'Pro' : 'Free plan'}
+          </span>
+        </div>
+
+        {/* Stats bar */}
+        <div className="stats-highlight-card">
+          {[
+            { label: 'Friends',   value: friendCount },
+            { label: 'Following', value: following },
+            { label: 'Followers', value: followers },
+          ].map(({ label, value }, i) => (
+            <div key={label} style={{ display: 'flex', flex: 1, alignItems: 'stretch' }}>
+              {i > 0 && <div style={{ width: 1, background: 'var(--border)', alignSelf: 'stretch' }} />}
+              <div style={{ textAlign: 'center', flex: 1 }}>
+                <p className="stats-highlight-value">{value}</p>
+                <p className="stats-highlight-label">{label}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
         {/* Tab bar */}
-        <div
-          style={{
-            display: 'flex',
-            borderBottom: '1px solid var(--border)',
-            margin: '16px 0 24px',
-            gap: 0,
-          }}
-        >
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
           {tabs.map(({ id, label, icon }) => (
             <button
               key={id}
+              type="button"
               onClick={() => setTab(id)}
               style={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 6,
-                padding: '12px 0',
-                border: 'none',
+                flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                gap: 6, padding: '12px 0', border: 'none',
                 borderBottom: tab === id ? '2px solid var(--accent)' : '2px solid transparent',
                 background: 'transparent',
-                color: tab === id ? 'var(--accent)' : 'var(--text-muted)',
-                fontSize: 13,
-                fontWeight: tab === id ? 600 : 400,
-                cursor: 'pointer',
-                transition: 'color 0.15s',
-                marginBottom: -1,
+                color: tab === id ? 'var(--accent)' : 'var(--text-secondary)',
+                fontSize: 13, fontWeight: tab === id ? 600 : 400,
+                cursor: 'pointer', transition: 'color 0.15s', marginBottom: -1,
+                fontFamily: 'inherit',
               }}
             >
               {icon}
@@ -945,17 +830,20 @@ export default function ProfilePage() {
         </div>
 
         {/* Tab content */}
-        {userId && tab === 'account' && (
-          <AccountTab
-            userId={userId}
-            email={email}
-            username={username}
-            tier={tier}
-            onUsernameChange={setUsername}
-          />
-        )}
-        {userId && tab === 'social' && <SocialTab userId={userId} />}
-        {userId && tab === 'alerts' && <AlertsTab userId={userId} />}
+        <div>
+          {userId && tab === 'account' && (
+            <AccountTab
+              userId={userId}
+              email={email}
+              username={username}
+              tier={tier}
+              onUsernameChange={setUsername}
+            />
+          )}
+          {userId && tab === 'social'  && <SocialTab  userId={userId} />}
+          {userId && tab === 'alerts'  && <AlertsTab  userId={userId} />}
+        </div>
+
       </div>
     </AuthGate>
   );
