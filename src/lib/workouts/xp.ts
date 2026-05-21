@@ -1,0 +1,20 @@
+// Re-export everything from the canonical XP lib.
+export {
+  calcSessionXP,
+  awardXP,
+  xpForLevel,
+  xpToLevel,
+  xpProgress,
+  xpToNextLevel,
+  xpLevelColor,
+  xpLevelGlow,
+  BASE_SESSION_XP,
+  MAX_STREAK_MULTIPLIER,
+  STREAK_RATE,
+  CHALLENGE_BONUS_XP,
+  WEEKLY_CHALLENGE_XP,
+  GOAL_HIT_XP,
+  PROGRAM_COMPLETE_XP,
+  SESSION_MILESTONES,
+  streakMultiplier,
+} from '@/lib/xp'

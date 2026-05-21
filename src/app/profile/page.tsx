@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button';
 import { FriendRequestCard } from '@/components/social/FriendRequestCard';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { fetchPlanTier } from '@/lib/workouts/sessions';
+import { useXPStore } from '@/store/xpStore';
+import { xpLevelColor, xpLevelGlow, xpProgress, xpToNextLevel } from '@/lib/xp';
 import {
   acceptGymInvite,
   areFriends,
@@ -742,6 +744,9 @@ export default function ProfilePage() {
   const [following,   setFollowing]   = useState(0);
   const [followers,   setFollowers]   = useState(0);
 
+  const xpTotal = useXPStore(s => s.xpTotal);
+  const xpLvl   = useXPStore(s => s.xpLevel);
+
   useEffect(() => {
     (async () => {
       const supabase = getSupabaseClient();
@@ -787,6 +792,68 @@ export default function ProfilePage() {
             {tier === 'pro' ? 'Pro' : 'Free plan'}
           </span>
         </div>
+
+        {/* XP / Level card */}
+        {(() => {
+          const color  = xpLevelColor(xpLvl);
+          const glow   = xpLevelGlow(xpLvl);
+          const pct    = Math.round(xpProgress(xpTotal, xpLvl) * 100);
+          const toNext = xpToNextLevel(xpTotal, xpLvl);
+          return (
+            <div className="card" style={{ padding: '16px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{
+                    width: 46, height: 46, borderRadius: 14,
+                    background: `${color}18`,
+                    border: `1.5px solid ${color}`,
+                    boxShadow: glow !== 'none' ? glow : undefined,
+                    display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center',
+                    flexShrink: 0,
+                  }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color, letterSpacing: '0.04em', textTransform: 'uppercase', opacity: 0.8 }}>LV</span>
+                    <span style={{ fontSize: 18, fontWeight: 800, color, lineHeight: 1 }}>{xpLvl}</span>
+                  </div>
+                  <div>
+                    <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Level {xpLvl}</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
+                      {xpTotal.toLocaleString()} XP total
+                    </p>
+                  </div>
+                </div>
+                {xpLvl < 50 && (
+                  <div style={{ textAlign: 'right' }}>
+                    <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>to next level</p>
+                    <p style={{ margin: '2px 0 0', fontSize: 14, fontWeight: 700, color }}>
+                      {toNext.toLocaleString()} XP
+                    </p>
+                  </div>
+                )}
+                {xpLvl >= 50 && (
+                  <span style={{ fontSize: 12, fontWeight: 700, color: '#FFD700' }}>Max Level</span>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              <div style={{ height: 7, borderRadius: 4, background: 'var(--bg-input)', overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%', width: `${pct}%`,
+                  background: color, borderRadius: 4,
+                  transition: 'width 0.6s ease',
+                  boxShadow: glow !== 'none' ? `0 0 8px ${color}60` : undefined,
+                }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Level {xpLvl}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color }}>{pct}%</span>
+                {xpLvl < 50 && (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Level {xpLvl + 1}</span>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Stats bar */}
         <div className="stats-highlight-card">
