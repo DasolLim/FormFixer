@@ -5,16 +5,17 @@ import { AuthGate } from '@/components/auth/AuthGate';
 import { Card } from '@/components/ui/Card';
 import { TodayCard } from '@/components/ui/TodayCard';
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import { fetchWorkoutSessions, fetchFormScoreHistory, fetchSessionRepScores } from '@/lib/workouts/sessions';
+import { fetchWorkoutSessions, fetchSessionRepScores } from '@/lib/workouts/sessions';
 import type { WorkoutSessionRow } from '@/lib/workouts/types';
-import type { ExerciseFormHistory } from '@/lib/workouts/sessions';
 import type { RepScore } from '@/lib/workouts/types';
-import { fetchProgramProgress, type ProgramProgressRow } from '@/lib/programs/sessions';
-import { fetchDailyMealItems } from '@/lib/nutrition/sessions';
 import type { WorkoutEventRow } from '@/lib/calendar/sessions';
 import type { WeeklyFrequency } from '@/lib/workouts/frequency';
+import type { ProgramProgressRow } from '@/lib/programs/sessions';
 import FrequencyChart from '@/components/ui/FrequencyChart';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Flame, Trophy, Zap } from 'lucide-react';
+import type { ServerChallenge, ServerChallengeProgress } from './page';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function safeExerciseName(exerciseId: string | null | undefined, fallback: string): string {
   if (!exerciseId) return fallback.toUpperCase();
@@ -38,59 +39,120 @@ function trendIcon(trend: string | null | undefined): string {
   return '→';
 }
 
-function scoreToY(score: number, height: number): number {
-  return height - (score / 100) * height;
-}
-function dateToX(date: string, minDate: number, maxDate: number, width: number): number {
-  const t = new Date(date).getTime();
-  if (maxDate === minDate) return width / 2;
-  return ((t - minDate) / (maxDate - minDate)) * width;
+// ─── Streak styling based on tier ────────────────────────────────────────────
+
+const STREAK_MILESTONES = [3, 7, 10, 14, 20, 21, 28, 30, 100, 365];
+
+function getStreakStyle(streak: number): { color: string; glow: string; bg: string; border: string } {
+  if (streak >= 365) return { color: '#FFD700', glow: '0 0 18px #FFD700, 0 0 36px rgba(255,200,0,0.4)', bg: 'rgba(255,215,0,0.08)', border: '#FFD700' };
+  if (streak >= 100) return { color: '#FF4500', glow: '0 0 16px rgba(255,69,0,0.9), 0 0 32px rgba(255,69,0,0.4)', bg: 'rgba(255,69,0,0.08)', border: '#FF4500' };
+  if (streak >= 30)  return { color: '#EF4444', glow: '0 0 14px rgba(239,68,68,0.8)', bg: 'rgba(239,68,68,0.07)', border: '#EF4444' };
+  if (streak >= 21)  return { color: '#F97316', glow: '0 0 12px rgba(249,115,22,0.7)', bg: 'rgba(249,115,22,0.07)', border: '#F97316' };
+  if (streak >= 14)  return { color: '#A855F7', glow: '0 0 12px rgba(168,85,247,0.7)', bg: 'rgba(168,85,247,0.07)', border: '#A855F7' };
+  if (streak >= 7)   return { color: '#3B82F6', glow: '0 0 10px rgba(59,130,246,0.7)', bg: 'rgba(59,130,246,0.07)', border: '#3B82F6' };
+  if (streak >= 3)   return { color: 'var(--accent)', glow: '0 0 8px var(--accent)', bg: 'var(--accent-muted)', border: 'var(--border-active)' };
+  return { color: 'var(--text-secondary)', glow: 'none', bg: 'var(--bg-card)', border: 'var(--border)' };
 }
 
-function FormScoreChart({ history }: { history: ExerciseFormHistory }) {
-  const W = 300; const H = 72; const PAD = 8;
-  const w = W - PAD * 2; const h = H - PAD * 2;
-  const sessions = history.sessions;
-  const mostRecent = sessions[sessions.length - 1];
-  const trend = mostRecent?.formTrend ?? 'stable';
-  const lineColor = trend === 'improving' ? 'var(--color-good)' : trend === 'declining' ? 'var(--color-warn)' : 'var(--color-neutral)';
-  // Frozen at first render so server and client produce identical SVG coordinates
-  const [now] = useState(() => Date.now());
-  const minDate = now - 30 * 24 * 60 * 60 * 1000;
-  const maxDate = now;
-  const points = sessions.map(s => ({
-    x: PAD + dateToX(s.recordedAt, minDate, maxDate, w),
-    y: PAD + scoreToY(s.averageFormScore, h),
-    score: s.averageFormScore,
-  }));
-  const polyline = points.map(p => `${p.x},${p.y}`).join(' ');
+function getHighestMilestone(streak: number): number | null {
+  for (const m of [...STREAK_MILESTONES].reverse()) {
+    if (streak >= m) return m;
+  }
+  return null;
+}
+
+function milestoneBadgeLabel(m: number): string {
+  if (m >= 365) return '1 Year';
+  if (m >= 100) return '100 Days';
+  return `${m} Day${m === 1 ? '' : 's'}`;
+}
+
+// ─── Weekly Form Progress Chart ───────────────────────────────────────────────
+
+function WeeklyFormChart({ sessions }: { sessions: WorkoutSessionRow[] }) {
+  const W = 320; const H = 140;
+  const PX = 28; const PY = 16; const LH = 18;
+  const cW = W - PX * 2;
+  const cH = H - PY * 2 - LH;
+
+  const [weekDays] = useState<Date[]>(() => {
+    const today = new Date();
+    const offset = (today.getDay() + 6) % 7;
+    const mon = new Date(today);
+    mon.setDate(today.getDate() - offset);
+    mon.setHours(0, 0, 0, 0);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(mon);
+      d.setDate(mon.getDate() + i);
+      return d;
+    });
+  });
+
+  const [todayIdx] = useState<number>(() => (new Date().getDay() + 6) % 7);
+  const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+  const dayScores = useMemo<(number | null)[]>(() => {
+    const acc: { sum: number; count: number }[] = Array.from({ length: 7 }, () => ({ sum: 0, count: 0 }));
+    sessions.forEach(s => {
+      const d = new Date(s.created_at);
+      d.setHours(0, 0, 0, 0);
+      const idx = weekDays.findIndex(w => w.getTime() === d.getTime());
+      if (idx === -1) return;
+      const score = s.average_form_score ?? s.form_score ?? 0;
+      if (score > 0) { acc[idx].sum += score; acc[idx].count += 1; }
+    });
+    return acc.map(a => a.count > 0 ? Math.round(a.sum / a.count) : null);
+  }, [sessions, weekDays]);
+
+  const dots = weekDays
+    .map((_, i) => {
+      const score = dayScores[i];
+      if (score === null || i > todayIdx) return null;
+      return { x: PX + (i / 6) * cW, y: PY + (1 - score / 100) * cH, score, i };
+    })
+    .filter((d): d is { x: number; y: number; score: number; i: number } => d !== null);
+
+  const polyline = dots.map(p => `${p.x},${p.y}`).join(' ');
 
   return (
-    <div style={{ marginBottom: 16 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
-        <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>
-          {safeExerciseName(history.exerciseId, history.exerciseId)}
-        </span>
-        <span style={{ fontSize: 22, fontWeight: 700, color: scoreColor(mostRecent?.averageFormScore ?? 0), lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
-          {mostRecent?.averageFormScore ?? 0}
-        </span>
-        <span style={{ fontSize: 13, color: lineColor }}>{trendIcon(trend)}</span>
-      </div>
-      <svg width={W} height={H} style={{ display: 'block', borderRadius: 10, background: 'var(--bg-input)', width: '100%' }}>
+    <div>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', display: 'block' }}>
         {[25, 50, 75].map(v => (
-          <line key={v} x1={PAD} y1={PAD + scoreToY(v, h)} x2={PAD + w} y2={PAD + scoreToY(v, h)}
-            stroke="var(--border-light)" strokeWidth={1} strokeDasharray="4 4" />
+          <line key={v} x1={PX} y1={PY + (1 - v / 100) * cH} x2={W - PX} y2={PY + (1 - v / 100) * cH}
+            stroke="var(--border-light)" strokeWidth={1} strokeDasharray="3 3" />
         ))}
-        {points.length > 1 && (
-          <polyline points={polyline} fill="none" stroke={lineColor} strokeWidth={2} strokeLinejoin="round" />
+        <rect x={PX + (todayIdx / 6) * cW - 12} y={PY} width={24} height={cH}
+          rx={4} fill="var(--accent)" opacity={0.07} />
+        {dots.length > 1 && (
+          <polyline points={polyline} fill="none" stroke="var(--accent)" strokeWidth={2}
+            strokeLinejoin="round" strokeLinecap="round" opacity={0.75} />
         )}
-        {points.map((p, i) => (
-          <circle key={i} cx={p.x} cy={p.y} r={4} fill={scoreColor(p.score)} />
+        {dots.map(p => (
+          <g key={p.i}>
+            <circle cx={p.x} cy={p.y} r={5} fill={scoreColor(p.score)} stroke="var(--bg-card)" strokeWidth={2} />
+            <text x={p.x} y={p.y - 9} textAnchor="middle" fontSize={9} fill={scoreColor(p.score)} fontWeight="700">{p.score}</text>
+          </g>
+        ))}
+        {DAY_LABELS.map((label, i) => (
+          <text key={i} x={PX + (i / 6) * cW} y={H - 3} textAnchor="middle" fontSize={10}
+            fill={i === todayIdx ? 'var(--accent)' : 'var(--text-muted)'}
+            fontWeight={i === todayIdx ? '700' : '400'}>{label}</text>
+        ))}
+        {[25, 50, 75].map(v => (
+          <text key={v} x={PX - 5} y={PY + (1 - v / 100) * cH + 4}
+            textAnchor="end" fontSize={8} fill="var(--text-muted)">{v}</text>
         ))}
       </svg>
+      {dots.length === 0 && (
+        <p style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
+          Complete a workout this week to see your form progress.
+        </p>
+      )}
     </div>
   );
 }
+
+// ─── Grouped Workouts (date accordion + scroll) ───────────────────────────────
 
 function RepSparkline({ repScores }: { repScores: RepScore[] }) {
   if (repScores.length === 0) return null;
@@ -113,7 +175,7 @@ function SessionRow({ session }: { session: WorkoutSessionRow }) {
   const exerciseName = safeExerciseName(session.exercise_id, session.exercise_type);
   const score = session.average_form_score ?? session.form_score;
   const trend = session.form_trend;
-  const date = new Date(session.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  const time = new Date(session.created_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
 
   const handleExpand = useCallback(async () => {
     if (!expanded && repScores === null && !loadingDetail) {
@@ -126,28 +188,31 @@ function SessionRow({ session }: { session: WorkoutSessionRow }) {
   }, [expanded, repScores, loadingDetail, session.id]);
 
   return (
-    <div style={{ borderRadius: 14, background: 'var(--bg-card)', overflow: 'hidden', boxShadow: 'var(--shadow-card)' }}>
-      <button
-        onClick={handleExpand}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', minHeight: 52 }}
-      >
-        <span style={{ flex: 1, fontSize: 15, fontWeight: 500, color: 'var(--text-primary)' }}>{exerciseName}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{session.rep_count} reps</span>
-        {score > 0 && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-on-dark)', background: scoreColor(score), padding: '3px 8px', borderRadius: 999 }}>
-            {score}
-          </span>
-        )}
-        {trend && (
-          <span style={{ fontSize: 13, color: trend === 'improving' ? 'var(--color-good)' : trend === 'declining' ? 'var(--color-warn)' : 'var(--text-muted)' }}>
-            {trendIcon(trend)}
-          </span>
-        )}
-        <span suppressHydrationWarning style={{ fontSize: 12, color: 'var(--text-muted)' }}>{date}</span>
-        <ChevronRight size={14} strokeWidth={1.5} style={{ color: 'var(--text-muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }} />
+    <div className="session-row-card">
+      <button onClick={handleExpand} className="session-row-btn">
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {exerciseName}
+          </p>
+          <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+            {time} · {session.rep_count} reps
+          </p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+          {score > 0 && (
+            <span className="session-row-score" style={{ background: scoreColor(score) }}>{score}</span>
+          )}
+          {trend && (
+            <span style={{ fontSize: 13, color: trend === 'improving' ? 'var(--color-good)' : trend === 'declining' ? 'var(--color-warn)' : 'var(--text-muted)' }}>
+              {trendIcon(trend)}
+            </span>
+          )}
+          <ChevronRight size={14} strokeWidth={1.5}
+            style={{ color: 'var(--text-muted)', transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }} />
+        </div>
       </button>
       {expanded && (
-        <div style={{ padding: '0 16px 14px', borderTop: '1px solid var(--border-light)' }}>
+        <div style={{ padding: '0 14px 12px', borderTop: '1px solid var(--border-light)' }}>
           {loadingDetail && <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--text-secondary)' }}>Loading...</p>}
           {repScores && repScores.length > 0 && <RepSparkline repScores={repScores} />}
           {repScores && repScores.length === 0 && (
@@ -159,19 +224,174 @@ function SessionRow({ session }: { session: WorkoutSessionRow }) {
   );
 }
 
+function relativeDate(dateKey: string): string {
+  const fmt = (d: Date) => d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  if (dateKey === fmt(new Date())) return 'Today';
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  if (dateKey === fmt(yesterday)) return 'Yesterday';
+  return dateKey;
+}
+
+const DAY_PREVIEW = 4;
+
+function DaySection({
+  dateKey, dateSessions, isOpen, isToday, onToggle,
+}: {
+  dateKey: string;
+  dateSessions: WorkoutSessionRow[];
+  isOpen: boolean;
+  isToday: boolean;
+  onToggle: () => void;
+}) {
+  const [showAll, setShowAll] = useState(false);
+  const hasMore = dateSessions.length > DAY_PREVIEW;
+  const visible = showAll ? dateSessions : dateSessions.slice(0, DAY_PREVIEW);
+
+  return (
+    <div className={`date-group${isOpen ? ' date-group--open' : ''}${isToday ? ' date-group--today' : ''}`}>
+      <button type="button" onClick={onToggle} className="date-group-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="date-group-label">{relativeDate(dateKey)}</span>
+          <span className="date-group-count">{dateSessions.length}</span>
+        </div>
+        <ChevronRight size={14} strokeWidth={1.5}
+          style={{ color: 'var(--text-muted)', transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.22s ease', flexShrink: 0 }} />
+      </button>
+
+      <div className={`date-group-body${isOpen ? ' date-group-body--open' : ''}`}>
+        <div className="date-group-inner">
+          {visible.map(s => <SessionRow key={s.id} session={s} />)}
+          {hasMore && !showAll && (
+            <button type="button" onClick={() => setShowAll(true)} className="date-group-view-all">
+              View all {dateSessions.length} →
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupedWorkouts({ sessions, loading }: { sessions: WorkoutSessionRow[]; loading: boolean }) {
+  const grouped = useMemo(() => {
+    const map = new Map<string, WorkoutSessionRow[]>();
+    sessions.forEach(s => {
+      const key = new Date(s.created_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(s);
+    });
+    return Array.from(map.entries());
+  }, [sessions]);
+
+  const todayKey = useMemo(
+    () => new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' }),
+    []
+  );
+
+  const [openDates, setOpenDates] = useState<Set<string>>(new Set());
+  const [initialized, setInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!initialized && grouped.length > 0) {
+      setOpenDates(new Set([grouped[0][0]]));
+      setInitialized(true);
+    }
+  }, [grouped, initialized]);
+
+  const toggle = useCallback((key: string) => {
+    setOpenDates(prev => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
+  }, []);
+
+  if (!loading && grouped.length === 0) {
+    return (
+      <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>
+        No sessions yet — head to Camera to start tracking.
+      </p>
+    );
+  }
+
+  return (
+    <div className="grouped-workouts-list">
+      {grouped.map(([dateKey, dateSessions]) => (
+        <DaySection
+          key={dateKey}
+          dateKey={dateKey}
+          dateSessions={dateSessions}
+          isOpen={openDates.has(dateKey)}
+          isToday={dateKey === todayKey}
+          onToggle={() => toggle(dateKey)}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Weekly Challenge Card ────────────────────────────────────────────────────
+
+function ChallengeCard({ challenge, progress }: {
+  challenge: ServerChallenge;
+  progress: ServerChallengeProgress;
+}) {
+  const pct = Math.min(100, Math.round((progress.current_reps / challenge.target_reps) * 100));
+  const bonusXP = Math.round(challenge.target_reps * 100 * 10); // rough estimate for display
+
+  return (
+    <Card title="Weekly Challenge">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+            {challenge.target_reps} {challenge.exercise_label}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+            {progress.current_reps} / {challenge.target_reps} reps
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#F5C842', fontWeight: 600 }}>
+          <Zap size={13} />
+          +{bonusXP.toLocaleString()} XP bonus
+        </div>
+      </div>
+      {progress.completed ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, background: 'rgba(52,211,153,0.1)', border: '1px solid rgba(52,211,153,0.3)' }}>
+          <Trophy size={14} style={{ color: '#34D399' }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: '#34D399' }}>Challenge complete!</span>
+        </div>
+      ) : (
+        <div style={{ height: 8, borderRadius: 4, background: 'var(--bg-input)', overflow: 'hidden' }}>
+          <div style={{
+            height: '100%', width: `${pct}%`,
+            background: pct >= 100 ? '#34D399' : pct >= 60 ? '#F5C842' : 'var(--accent)',
+            borderRadius: 4, transition: 'width 0.5s ease',
+          }} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+
 interface DashboardClientProps {
   currentStreak: number;
   longestStreak: number;
   todayEvent: WorkoutEventRow | null;
   frequency: WeeklyFrequency[];
   targetSessionsPerWeek: number;
+  todayCalories: number;
+  activeProgram: ProgramProgressRow | null;
+  challenge: ServerChallenge | null;
+  challengeProgress: ServerChallengeProgress | null;
 }
 
-export function DashboardClient({ currentStreak, longestStreak, todayEvent, frequency, targetSessionsPerWeek }: DashboardClientProps) {
+export function DashboardClient({
+  currentStreak, longestStreak, todayEvent, frequency, targetSessionsPerWeek,
+  todayCalories, activeProgram, challenge, challengeProgress,
+}: DashboardClientProps) {
   const [sessions, setSessions] = useState<WorkoutSessionRow[]>([]);
-  const [formHistory, setFormHistory] = useState<ExerciseFormHistory[]>([]);
-  const [programs, setPrograms] = useState<ProgramProgressRow[]>([]);
-  const [dailyCalories, setDailyCalories] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -180,45 +400,52 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
       const supabase = getSupabaseClient();
       const { data } = await supabase.auth.getUser();
       if (!data.user) { setLoading(false); return; }
-
-      const [sessionResult, programResult, mealResult, historyResult] = await Promise.all([
-        fetchWorkoutSessions(data.user.id),
-        fetchProgramProgress(data.user.id),
-        fetchDailyMealItems(data.user.id, new Date().toISOString().slice(0, 10)),
-        fetchFormScoreHistory(data.user.id),
-      ]);
-
-      if (sessionResult.error) setError(sessionResult.error.message);
-      else setSessions(sessionResult.data);
-
-      if (!programResult.error) setPrograms(programResult.data);
-      if (!mealResult.error) setDailyCalories(mealResult.data.reduce((sum, item) => sum + item.calories, 0));
-      setFormHistory(historyResult);
+      const result = await fetchWorkoutSessions(data.user.id);
+      if (result.error) setError(result.error.message);
+      else setSessions(result.data);
       setLoading(false);
     })();
   }, []);
 
   const totalReps = useMemo(() => sessions.reduce((sum, s) => sum + s.rep_count, 0), [sessions]);
-  const activeProgram = programs[0];
-  const chartsWithData = formHistory.filter(h => h.sessions.length >= 1);
+  const streakStyle = getStreakStyle(currentStreak);
+  const milestone = getHighestMilestone(currentStreak);
 
   return (
     <AuthGate>
       <div className="ui-section">
-        {/* 1 — Stat grid */}
-        <div className="stat-grid">
+
+        {/* ── Stat Grid: streak | sessions | reps | program | calories ── */}
+        <div className="stat-grid stat-grid-5">
+
+          {/* Day Streak — accented with tier glow */}
+          <div className="stat-card stat-card-streak"
+            style={{ background: streakStyle.bg, border: `1px solid ${streakStyle.border}`, boxShadow: streakStyle.glow !== 'none' ? streakStyle.glow : undefined }}>
+            <span className="stat-card-value" style={{ color: streakStyle.color }}>{currentStreak}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Flame size={12} style={{ color: streakStyle.color }} />
+              <span className="stat-card-label">Day Streak</span>
+            </div>
+            {milestone && (
+              <span style={{ fontSize: 9, fontWeight: 700, color: streakStyle.color, background: `${streakStyle.color}22`, borderRadius: 4, padding: '1px 5px', marginTop: 2, letterSpacing: '0.03em' }}>
+                {milestoneBadgeLabel(milestone)}
+              </span>
+            )}
+            {longestStreak > 0 && (
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Best: {longestStreak}</span>
+            )}
+          </div>
+
           <div className="stat-card">
             <span className="stat-card-value">{sessions.length}</span>
             <span className="stat-card-label">Sessions</span>
           </div>
+
           <div className="stat-card">
             <span className="stat-card-value">{totalReps}</span>
             <span className="stat-card-label">Total Reps</span>
           </div>
-          <div className="stat-card">
-            <span className="stat-card-value">{currentStreak}</span>
-            <span className="stat-card-label">Day Streak</span>
-          </div>
+
           <div className="stat-card">
             <span className="stat-card-value" style={{ fontSize: activeProgram ? 16 : 28 }}>
               {activeProgram ? `${activeProgram.completion_percent}%` : '—'}
@@ -227,66 +454,48 @@ export function DashboardClient({ currentStreak, longestStreak, todayEvent, freq
               {activeProgram ? activeProgram.program_slug : 'No program'}
             </span>
           </div>
-        </div>
 
-        {loading && <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center' }}>Loading dashboard...</p>}
-        {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
-
-        {/* 2 — Day Streak highlighted card */}
-        <div
-          className="stat-card"
-          style={{
-            background: 'var(--accent-muted)',
-            border: '1px solid var(--border-active)',
-            alignSelf: 'flex-start',
-          }}
-        >
-          <span className="stat-card-value">{currentStreak}</span>
-          <span className="stat-card-label">Day Streak</span>
-        </div>
-
-        {/* 3 — Today's Schedule / Browse Programs */}
-        <TodayCard event={todayEvent} />
-
-        {/* 4 — Form Progress */}
-        {/* 5 — Recent Workouts  (both above Frequency + Muscle Activity) */}
-        <div className="dashboard-desktop-grid">
-          <Card title="Form Progress (Last 30 Days)">
-            {chartsWithData.length === 0 ? (
-              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: 14, padding: '20px 0' }}>
-                Complete a workout and save it to see your form score history.
-              </p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {chartsWithData.map(h => <FormScoreChart key={h.exerciseId} history={h} />)}
-              </div>
-            )}
-          </Card>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <Card title="Recent Workouts">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-                {sessions.map(session => <SessionRow key={session.id} session={session} />)}
-                {!loading && sessions.length === 0 && (
-                  <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center', padding: '16px 0' }}>
-                    No sessions yet — head to Camera to start tracking.
-                  </p>
-                )}
-              </div>
-            </Card>
-
-            {activeProgram && (
-              <Card title="Active Program">
-                <p className="ui-card-description">{activeProgram.program_slug}</p>
-                <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
-                  Week {activeProgram.current_week} · {activeProgram.completed_workouts}/{activeProgram.total_workouts} workouts complete
-                </p>
-              </Card>
-            )}
+          <div className="stat-card">
+            <span className="stat-card-value" style={{ fontSize: todayCalories > 9999 ? 18 : 28 }}>
+              {todayCalories > 0 ? todayCalories.toLocaleString() : '—'}
+            </span>
+            <span className="stat-card-label">Calories Today</span>
           </div>
         </div>
 
-        {/* 6 — Weekly Frequency */}
+        {loading && <p style={{ color: 'var(--text-secondary)', fontSize: 14, textAlign: 'center' }}>Loading...</p>}
+        {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
+
+        {/* ── Today's Schedule ── */}
+        <TodayCard event={todayEvent} />
+
+        {/* ── Weekly Challenge ── */}
+        {challenge && challengeProgress && (
+          <ChallengeCard challenge={challenge} progress={challengeProgress} />
+        )}
+
+        {/* ── Form Progress + Recent Workouts ── */}
+        <div className="dashboard-desktop-grid">
+          <Card title="Form Progress (This Week)">
+            <WeeklyFormChart sessions={sessions} />
+          </Card>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {/* Fixed-height Recent Workouts — title pinned, list scrolls internally */}
+            <article className="recent-workouts-card">
+              <div className="recent-workouts-header">
+                <h3 className="ui-card-title" style={{ margin: 0 }}>Recent Workouts</h3>
+              </div>
+              <div className="recent-workouts-scroll">
+                <GroupedWorkouts sessions={sessions} loading={loading} />
+              </div>
+              <div className="recent-workouts-fade" aria-hidden="true" />
+            </article>
+
+          </div>
+        </div>
+
+        {/* ── Weekly Frequency ── */}
         <Card title="Weekly Frequency">
           {frequency.length > 0
             ? <FrequencyChart data={frequency} targetSessionsPerWeek={targetSessionsPerWeek} />
