@@ -6,9 +6,10 @@ type CardProps = {
   children?: ReactNode;
   variant?: 'default' | 'raised' | 'white' | 'accent';
   className?: string;
+  id?: string;
 };
 
-export function Card({ title, description, children, variant = 'default', className }: CardProps) {
+export function Card({ title, description, children, variant = 'default', className, id }: CardProps) {
   const variantClass =
     variant === 'raised' ? 'card card-raised' :
     variant === 'white'  ? 'card card-white'  :
@@ -17,7 +18,7 @@ export function Card({ title, description, children, variant = 'default', classN
   const classes = [variantClass, className ?? ''].filter(Boolean).join(' ');
 
   return (
-    <article className={classes}>
+    <article id={id} className={classes}>
       {title ? <h3 className="ui-card-title">{title}</h3> : null}
       {description ? <p className="ui-card-description">{description}</p> : null}
       {children}

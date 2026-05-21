@@ -683,6 +683,155 @@ button:active, a:active {
   color: var(--text-secondary);
 }
 
+/* Streak card spans full width on mobile so it stands out */
+.stat-card-streak {
+  grid-column: span 2;
+}
+
+/* ─── Session rows (Recent Workouts) ──────────────────────────────────────── */
+.session-row-card {
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
+}
+.session-row-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  min-height: 52px;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.session-row-btn:hover  { background: rgba(255,255,255,0.04); }
+.session-row-btn:active { background: rgba(255,255,255,0.06); }
+.session-row-name  { flex: 1; font-size: 13px; font-weight: 600; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-row-reps  { font-size: 12px; color: var(--text-secondary); white-space: nowrap; }
+.session-row-score {
+  font-size: 11px; font-weight: 700; color: #fff;
+  padding: 2px 8px; border-radius: 999px; white-space: nowrap;
+}
+
+/* ─── Day-group accordion (Recent Workouts) ──────────────────────────────── */
+.grouped-workouts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-bottom: 4px;
+}
+
+.date-group {
+  position: relative;
+  border-radius: 12px;
+}
+
+/* Header */
+.date-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: #1a1a1a;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.date-group--open .date-group-header {
+  border-radius: 12px 12px 0 0;
+}
+.date-group--today .date-group-header {
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+}
+.date-group-header:hover { background: #202020; }
+
+.date-group-label { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.date-group-count {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  background: var(--accent-muted); border-radius: 999px; padding: 1px 8px;
+}
+
+/* Collapsible body — max-height transition */
+.date-group-body {
+  overflow: hidden;
+  max-height: 0;
+  transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #111;
+  border-radius: 0 0 12px 12px;
+}
+.date-group-body--open {
+  max-height: 800px;
+}
+
+/* Inner list — no scroll (outer card handles it) */
+.date-group-inner {
+  padding: 8px;
+  padding-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ─── Recent Workouts fixed card ──────────────────────────────────────────── */
+.recent-workouts-card {
+  position: relative;
+  height: 460px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-card);
+  border-radius: 20px;
+  box-shadow: var(--shadow-card);
+  width: 100%;
+}
+.recent-workouts-header {
+  padding: 20px 20px 12px;
+  flex-shrink: 0;
+}
+.recent-workouts-scroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 20px 48px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.12) transparent;
+}
+.recent-workouts-scroll::-webkit-scrollbar       { width: 4px; }
+.recent-workouts-scroll::-webkit-scrollbar-track { background: transparent; }
+.recent-workouts-scroll::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
+.recent-workouts-fade {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--bg-card));
+  pointer-events: none;
+}
+
+/* "View all N →" link-style button */
+.date-group-view-all {
+  width: 100%;
+  padding: 6px 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: left;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+}
+.date-group-view-all:hover { opacity: 1; }
+
 /* ─── 17. LIST ROWS ───────────────────────────────────────────────────────── */
 .list-row {
   display: flex;
@@ -1201,9 +1350,9 @@ button:active, a:active {
 /* Food search results */
 .nutrition-food-result {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
   padding: 10px 14px;
   border-radius: 12px;
   background: var(--bg-input);
@@ -1211,12 +1360,18 @@ button:active, a:active {
   cursor: pointer;
   text-align: left;
   width: 100%;
+  font-family: inherit;
   transition: all 0.12s ease;
 }
 
-.nutrition-food-result:hover {
+.nutrition-food-result:hover:not(:disabled) {
   border-color: var(--border-active);
   background: var(--bg-card-raised);
+}
+
+.nutrition-food-result:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .nutrition-food-result-name {
@@ -2125,6 +2280,8 @@ button:active { transform: scale(0.97); }
   .desktop-only { display: block !important; }
 
   .stat-grid { grid-template-columns: repeat(4, 1fr); }
+  .stat-grid-5 { grid-template-columns: repeat(5, 1fr); }
+  .stat-card-streak { grid-column: span 1; } /* reset mobile span on desktop */
 
   .camera-page-layout {
     display: grid;

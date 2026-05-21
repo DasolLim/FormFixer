@@ -4,12 +4,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
-import {
-  Home,
-  Camera,
-  Dumbbell,
-  Apple,
-} from 'lucide-react';
+import { xpProgress, xpLevelColor, xpLevelGlow } from '@/lib/xp';
+import { useXPStore } from '@/store/xpStore';
+import { Home, Camera, Dumbbell, Apple } from 'lucide-react';
 
 const bottomNavItems = [
   { href: '/dashboard', label: 'Home',      icon: Home },
@@ -40,6 +37,8 @@ export function Navbar() {
   const [isAuthed,  setIsAuthed]  = useState(false);
   const [username,  setUsername]  = useState<string | null>(null);
   const [email,     setEmail]     = useState<string | null>(null);
+  const xpTotal = useXPStore(s => s.xpTotal);
+  const xpLvl   = useXPStore(s => s.xpLevel);
 
   useEffect(() => {
     setMounted(true);
@@ -137,36 +136,61 @@ export function Navbar() {
             </Link>
           ) : (
             <>
-              <button
-                type="button"
-                className="navbar-auth-btn"
-                onClick={handleLogout}
-                style={{ display: 'none' }}
-              />
-              <Link
-                href="/profile"
-                aria-label="Go to profile"
-                title="Profile"
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: '50%',
-                  background: isProfileActive ? 'var(--accent)' : 'var(--bg-input)',
-                  border: `2px solid ${isProfileActive ? 'var(--accent)' : 'var(--border)'}`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  color: isProfileActive ? 'var(--accent-fg)' : 'var(--text-secondary)',
-                  textDecoration: 'none',
-                  flexShrink: 0,
-                  transition: 'border-color 0.15s, background 0.15s',
-                  letterSpacing: '0.02em',
-                }}
-              >
-                {initials}
-              </Link>
+              <button type="button" className="navbar-auth-btn" onClick={handleLogout} style={{ display: 'none' }} />
+              {(() => {
+                const pct   = xpProgress(xpTotal, xpLvl) * 100;
+                const color = xpLevelColor(xpLvl);
+                const glow  = xpLevelGlow(xpLvl);
+                const ringColor = isProfileActive ? 'var(--accent)' : color;
+                return (
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5 }}>
+                    {/* Avatar with level-tier ring */}
+                    <div style={{ position: 'relative' }}>
+                      <Link
+                        href="/profile"
+                        aria-label="Go to profile"
+                        style={{
+                          width: 36, height: 36, borderRadius: '50%',
+                          background: isProfileActive ? 'var(--accent)' : 'var(--bg-input)',
+                          border: `2px solid ${ringColor}`,
+                          boxShadow: glow !== 'none' ? glow : undefined,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 12, fontWeight: 700, letterSpacing: '0.02em',
+                          color: isProfileActive ? 'var(--text-on-lime)' : 'var(--text-primary)',
+                          textDecoration: 'none', flexShrink: 0,
+                          transition: 'border-color 0.2s, box-shadow 0.2s',
+                        }}
+                      >
+                        {initials}
+                      </Link>
+                      {/* Floating level badge */}
+                      <div style={{
+                        position: 'absolute', bottom: -5, left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: color, color: '#000',
+                        fontSize: 8, fontWeight: 800, lineHeight: 1,
+                        padding: '2px 5px', borderRadius: 999,
+                        border: '1.5px solid var(--bg-app)',
+                        whiteSpace: 'nowrap', pointerEvents: 'none',
+                      }}>
+                        Lv {xpLvl}
+                      </div>
+                    </div>
+
+                    {/* XP progress bar */}
+                    <div style={{ width: 46, marginTop: 2 }}>
+                      <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-input)', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', width: `${pct}%`,
+                          background: color, borderRadius: 2,
+                          transition: 'width 0.6s ease',
+                          boxShadow: glow !== 'none' ? `0 0 5px ${color}80` : undefined,
+                        }} />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           )}
         </div>
