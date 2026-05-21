@@ -5,9 +5,13 @@ import { useRouter } from 'next/navigation';
 import type { ProgramTemplate } from '@/lib/programs/types';
 
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
+type Goal       = 'lose' | 'maintain' | 'gain';
+type Focus      = 'lower' | 'upper' | 'fullbody';
 
 type WizardState = {
   difficulty: Difficulty;
+  goal: Goal;
+  focus: Focus;
   daysPerWeek: number;
   weeks: number;
 };
@@ -18,19 +22,34 @@ const DIFFICULTY_OPTIONS: { value: Difficulty; label: string; description: strin
   { value: 'advanced',     label: 'Advanced',     description: 'Serious athlete with 2+ years of training' },
 ];
 
+const GOAL_OPTIONS: { value: Goal; label: string; description: string }[] = [
+  { value: 'lose',     label: 'Lose Fat',       description: 'Higher reps, shorter rest, calorie-burning focus' },
+  { value: 'maintain', label: 'Maintain',        description: 'Balance strength and endurance, stay lean' },
+  { value: 'gain',     label: 'Build Muscle',    description: 'Progressive overload, heavier weights, longer rest' },
+];
+
+const FOCUS_OPTIONS: { value: Focus; label: string; description: string }[] = [
+  { value: 'lower',    label: 'Lower Body',  description: 'Legs, glutes, hamstrings, calves' },
+  { value: 'upper',    label: 'Upper Body',  description: 'Chest, back, shoulders, arms' },
+  { value: 'fullbody', label: 'Full Body',   description: 'Balanced program hitting every muscle group' },
+];
+
 const WEEK_OPTIONS = [4, 8, 12];
+const TOTAL_STEPS  = 5;
 
 export default function GenerateProgramPage() {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [wizard, setWizard] = useState<WizardState>({
+  const [step, setStep]                     = useState(1);
+  const [wizard, setWizard]                 = useState<WizardState>({
     difficulty: 'beginner',
+    goal: 'lose',
+    focus: 'lower',
     daysPerWeek: 3,
     weeks: 8,
   });
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating]         = useState(false);
   const [generatedProgram, setGeneratedProgram] = useState<ProgramTemplate | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]                   = useState<string | null>(null);
 
   async function generate() {
     setGenerating(true);
@@ -48,7 +67,7 @@ export default function GenerateProgramPage() {
         return;
       }
       setGeneratedProgram(json.program ?? null);
-      setStep(4);
+      setStep(TOTAL_STEPS + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Network error');
     } finally {
@@ -56,16 +75,12 @@ export default function GenerateProgramPage() {
     }
   }
 
-  function handleStartProgram() {
-    router.push('/programs');
-  }
-
   return (
     <div className="onboarding-page">
       <div className="onboarding-card" style={{ maxWidth: 560 }}>
         {/* Step indicator */}
         <div className="wizard-steps">
-          {[1, 2, 3].map(s => (
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map(s => (
             <div
               key={s}
               className={`wizard-step${step >= s ? ' wizard-step-active' : ''}${step > s ? ' wizard-step-done' : ''}`}
@@ -73,6 +88,7 @@ export default function GenerateProgramPage() {
           ))}
         </div>
 
+        {/* Step 1 — Difficulty */}
         {step === 1 && (
           <>
             <h1 className="onboarding-title">How experienced are you?</h1>
@@ -96,7 +112,58 @@ export default function GenerateProgramPage() {
           </>
         )}
 
+        {/* Step 2 — Goal */}
         {step === 2 && (
+          <>
+            <h1 className="onboarding-title">What's your goal?</h1>
+            <p className="onboarding-subtitle">Your program will be structured around this outcome.</p>
+            <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+              {GOAL_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`selection-tile${wizard.goal === opt.value ? ' selection-tile-active' : ''}`}
+                  onClick={() => setWizard(w => ({ ...w, goal: opt.value }))}
+                >
+                  <span className="selection-tile-label">{opt.label}</span>
+                  <span className="selection-tile-desc">{opt.description}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>
+              <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => setStep(3)}>Next</button>
+            </div>
+          </>
+        )}
+
+        {/* Step 3 — Focus */}
+        {step === 3 && (
+          <>
+            <h1 className="onboarding-title">Where do you want to focus?</h1>
+            <p className="onboarding-subtitle">This shapes which muscle groups are prioritized.</p>
+            <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+              {FOCUS_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  className={`selection-tile${wizard.focus === opt.value ? ' selection-tile-active' : ''}`}
+                  onClick={() => setWizard(w => ({ ...w, focus: opt.value }))}
+                >
+                  <span className="selection-tile-label">{opt.label}</span>
+                  <span className="selection-tile-desc">{opt.description}</span>
+                </button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => setStep(4)}>Next</button>
+            </div>
+          </>
+        )}
+
+        {/* Step 4 — Days per week */}
+        {step === 4 && (
           <>
             <h1 className="onboarding-title">Days per week</h1>
             <p className="onboarding-subtitle">How many days can you commit to training?</p>
@@ -113,13 +180,14 @@ export default function GenerateProgramPage() {
               ))}
             </div>
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(1)}>Back</button>
-              <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => setStep(3)}>Next</button>
+              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(3)}>Back</button>
+              <button type="button" className="btn btn-primary" style={{ flex: 2 }} onClick={() => setStep(5)}>Next</button>
             </div>
           </>
         )}
 
-        {step === 3 && (
+        {/* Step 5 — Program length */}
+        {step === 5 && (
           <>
             <h1 className="onboarding-title">Program length</h1>
             <p className="onboarding-subtitle">How many weeks do you want the program to run?</p>
@@ -139,7 +207,7 @@ export default function GenerateProgramPage() {
               <p style={{ color: 'var(--color-warn)', fontSize: '0.85rem', marginTop: 8 }}>{error}</p>
             )}
             <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
-              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(2)}>Back</button>
+              <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(4)}>Back</button>
               <button
                 type="button"
                 className="btn btn-primary"
@@ -158,7 +226,8 @@ export default function GenerateProgramPage() {
           </>
         )}
 
-        {step === 4 && generatedProgram && (
+        {/* Result */}
+        {step === TOTAL_STEPS + 1 && generatedProgram && (
           <>
             <h1 className="onboarding-title">{generatedProgram.title}</h1>
             <p className="onboarding-subtitle">{generatedProgram.description}</p>
@@ -185,13 +254,13 @@ export default function GenerateProgramPage() {
               ))}
             </div>
 
-            <button type="button" className="btn btn-primary btn-full" style={{ marginTop: 16 }} onClick={handleStartProgram}>
+            <button type="button" className="btn btn-primary btn-full" style={{ marginTop: 16 }} onClick={() => router.push('/programs')}>
               Start This Program
             </button>
             <button
               type="button"
               style={{ marginTop: 8, width: '100%', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '0.82rem', cursor: 'pointer', padding: '6px 0' }}
-              onClick={() => { setStep(3); setGeneratedProgram(null); setError(null); }}
+              onClick={() => { setStep(5); setGeneratedProgram(null); setError(null); }}
             >
               Generate another
             </button>

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { Zap } from 'lucide-react'
-import { fetchAllPrograms } from '@/lib/programs/catalog'
+import { fetchAllProgramsForUser } from '@/lib/programs/catalog'
 import { getSupabaseServer } from '@/lib/supabaseServer'
 import { redirect } from 'next/navigation'
 import ProgramGrid from './ProgramGrid'
@@ -21,7 +21,7 @@ export default async function ProgramsPage() {
   const equipment: string[] = (profile?.equipment_profile as string[]) ?? ['bodyweight']
 
   const [allPrograms, userProgressResult] = await Promise.all([
-    fetchAllPrograms(),
+    fetchAllProgramsForUser(user.id),
     supabase
       .from('user_program_progress')
       .select('*')
@@ -56,7 +56,7 @@ export default async function ProgramsPage() {
           </Link>
         </div>
       </header>
-      <ProgramGrid programs={filtered} progressMap={progressMap} />
+      <ProgramGrid programs={filtered} progressMap={progressMap} userId={user.id} />
     </div>
   )
 }

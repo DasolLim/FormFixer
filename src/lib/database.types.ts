@@ -296,6 +296,8 @@ export type Database = {
           unavailable_days: Json | null
           username: string | null
           weight_unit: string | null
+          xp_total: number | null
+          xp_level: number | null
         }
         Insert: {
           best_form_score?: number | null
@@ -320,6 +322,8 @@ export type Database = {
           unavailable_days?: Json | null
           username?: string | null
           weight_unit?: string | null
+          xp_total?: number | null
+          xp_level?: number | null
         }
         Update: {
           best_form_score?: number | null
@@ -344,6 +348,86 @@ export type Database = {
           unavailable_days?: Json | null
           username?: string | null
           weight_unit?: string | null
+          xp_total?: number | null
+          xp_level?: number | null
+        }
+        Relationships: []
+      }
+      weekly_challenges: {
+        Row: {
+          id: string
+          exercise_id: string
+          target_reps: number
+          week_start: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          exercise_id: string
+          target_reps: number
+          week_start: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          exercise_id?: string
+          target_reps?: number
+          week_start?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      xp_events: {
+        Row: {
+          id: string
+          user_id: string
+          amount: number
+          source: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          amount: number
+          source: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          amount?: number
+          source?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_challenge_progress: {
+        Row: {
+          id: string
+          user_id: string
+          challenge_id: string
+          current_reps: number
+          completed: boolean
+          xp_awarded: number
+          completed_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          challenge_id: string
+          current_reps?: number
+          completed?: boolean
+          xp_awarded?: number
+          completed_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          challenge_id?: string
+          current_reps?: number
+          completed?: boolean
+          xp_awarded?: number
+          completed_at?: string | null
         }
         Relationships: []
       }
@@ -447,6 +531,7 @@ export type Database = {
           completed_workouts: number
           completion_percent: number
           created_at: string
+          updated_at: string | null
           current_week: number
           id: string
           program_id: string | null
@@ -458,6 +543,7 @@ export type Database = {
           completed_workouts?: number
           completion_percent?: number
           created_at?: string
+          updated_at?: string | null
           current_week?: number
           id?: string
           program_id?: string | null
@@ -469,6 +555,7 @@ export type Database = {
           completed_workouts?: number
           completion_percent?: number
           created_at?: string
+          updated_at?: string | null
           current_week?: number
           id?: string
           program_id?: string | null
@@ -595,7 +682,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      award_xp: {
+        Args: { p_user_id: string; p_amount: number; p_source?: string }
+        Returns: Json
+      }
+      get_or_create_weekly_challenge: {
+        Args: Record<string, never>
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

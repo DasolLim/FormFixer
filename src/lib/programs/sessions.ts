@@ -8,6 +8,7 @@ export type ProgramProgressRow = {
   total_workouts: number;
   completion_percent: number;
   created_at: string;
+  updated_at: string | null;
 };
 
 export async function assignProgram(userId: string, programSlug: string, totalWorkouts: number) {
@@ -31,9 +32,9 @@ export async function fetchProgramProgress(userId: string) {
   const supabase = await getSupabaseClient();
   const { data, error } = await supabase
     .from('user_program_progress')
-    .select('id,program_slug,current_week,completed_workouts,total_workouts,completion_percent,created_at')
+    .select('id,program_slug,current_week,completed_workouts,total_workouts,completion_percent,created_at,updated_at')
     .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .order('updated_at', { ascending: false, nullsFirst: false });
 
   return { data: (data ?? []) as ProgramProgressRow[], error };
 }
@@ -50,7 +51,7 @@ export async function markProgramWorkoutComplete(progressId: string) {
 
   const { error: updateError } = await supabase
     .from('user_program_progress')
-    .update({ completed_workouts: completed, completion_percent: percent, current_week: week })
+    .update({ completed_workouts: completed, completion_percent: percent, current_week: week, updated_at: new Date().toISOString() })
     .eq('id', progressId);
 
   return { error: updateError };

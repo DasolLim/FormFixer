@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { GoalType, NutritionGoals } from '@/lib/nutrition/types';
+import type { ActivityLevel, GoalType, NutritionGoals } from '@/lib/nutrition/types';
 import { calculateMacroGoals } from '@/lib/nutrition/types';
 
 interface NutritionGoalsModalProps {
@@ -10,13 +10,21 @@ interface NutritionGoalsModalProps {
   onClose: () => void;
 }
 
+const ACTIVITY_LABELS: Record<ActivityLevel, string> = {
+  sedentary:          'Sedentary (desk job, no exercise)',
+  lightly_active:     'Lightly active (1–3 workouts/week)',
+  moderately_active:  'Moderately active (3–5 workouts/week)',
+  very_active:        'Very active (6–7 intense sessions/week)',
+};
+
 export function NutritionGoalsModal({ goals, onSave, onClose }: NutritionGoalsModalProps) {
-  const [weightKg, setWeightKg] = useState(70);
-  const [goalType, setGoalType] = useState<GoalType>(goals?.goalType ?? 'maintain');
-  const [preview, setPreview] = useState<NutritionGoals | null>(goals);
+  const [weightKg,      setWeightKg]      = useState(70);
+  const [goalType,      setGoalType]      = useState<GoalType>(goals?.goalType ?? 'maintain');
+  const [activityLevel, setActivityLevel] = useState<ActivityLevel>('moderately_active');
+  const [preview,       setPreview]       = useState<NutritionGoals | null>(goals);
 
   function handleGenerate() {
-    setPreview(calculateMacroGoals(weightKg, goalType));
+    setPreview(calculateMacroGoals(weightKg, goalType, activityLevel));
   }
 
   function handleSave() {
@@ -51,6 +59,19 @@ export function NutritionGoalsModal({ goals, onSave, onClose }: NutritionGoalsMo
               <option value="lose_weight">Lose weight</option>
               <option value="maintain">Maintain weight</option>
               <option value="build_muscle">Build muscle</option>
+            </select>
+          </label>
+
+          <label className="field-label">
+            Activity level
+            <select
+              value={activityLevel}
+              onChange={e => setActivityLevel(e.target.value as ActivityLevel)}
+              className="exercise-select"
+            >
+              {(Object.keys(ACTIVITY_LABELS) as ActivityLevel[]).map(level => (
+                <option key={level} value={level}>{ACTIVITY_LABELS[level]}</option>
+              ))}
             </select>
           </label>
 
