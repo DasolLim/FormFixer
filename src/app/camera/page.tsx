@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { clearCanvas, drawPoseOverlay, resizeCanvasToVideo } from '@/lib/pose/draw';
 import type { MediaPipePoseResultLike } from '@/features/pose/pose-types';
 import { getSupabaseClient } from '@/lib/supabaseClient';
@@ -25,7 +25,7 @@ import { SessionSummaryPanel } from '@/components/ui/SessionSummaryPanel';
 import { ExerciseInfoCard } from '@/components/ui/ExerciseInfoCard';
 import { WorkoutConfigPanel } from '@/components/ui/WorkoutConfigPanel';
 import { RestTimer } from '@/components/ui/RestTimer';
-import { Play, Flag, CameraOff } from 'lucide-react';
+import { Play, Flag, CameraOff, CheckCircle2, Circle, ChevronRight, Minus, Plus } from 'lucide-react';
 import PRBadge from '@/components/ui/PRBadge';
 import { SessionSidePanel } from '@/components/ui/SessionSidePanel';
 import type { PRCheckResult } from '@/lib/workouts/records';
@@ -42,6 +42,12 @@ type VisionModule = {
   };
 };
 
+type DayExercise = { exercise_id: string; sets: number; reps: number; rest_seconds: number };
+type DaySession = {
+  programId: string; programSlug: string; dayIndex: number; dayLabel: string;
+  exercises: DayExercise[];
+};
+
 
 const DEFAULT_CONFIG: WorkoutPlanConfig = {
   exerciseId: 'squat',
@@ -51,6 +57,7 @@ const DEFAULT_CONFIG: WorkoutPlanConfig = {
 };
 
 function CameraPageInner() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -93,6 +100,15 @@ function CameraPageInner() {
   // latest value without depending on React's closure timing.
   const setResultsRef = useRef(planState.setResults);
   setResultsRef.current = planState.setResults;
+
+  const [daySession, setDaySession] = useState<DaySession | null>(null);
+  const [currentExIdx, setCurrentExIdx] = useState(0);
+  const [completedExSets, setCompletedExSets] = useState<number[]>([]);
+  const [useCameraMode, setUseCameraMode] = useState(true);
+  const [manualReps, setManualReps] = useState(0);
+  const currentExIdxRef = useRef(currentExIdx);
+  currentExIdxRef.current = currentExIdx;
+  const daySessionRef = useRef<DaySession | null>(null);
 
   const [userId, setUserId] = useState<string | null>(null);
   const [selectedExercise, setSelectedExercise] = useState('squat');
@@ -143,6 +159,16 @@ function CameraPageInner() {
       if (!data.user) return;
       setUserId(data.user.id);
     })();
+    // Read day session from sessionStorage
+    try {
+      const raw = sessionStorage.getItem('workout_day_session');
+      if (raw) {
+        const ds = JSON.parse(raw) as DaySession;
+        setDaySession(ds);
+        daySessionRef.current = ds;
+        setCompletedExSets(new Array(ds.exercises.length).fill(0));
+      }
+    } catch { /* ignore */ }
     return () => stopCamera();
   }, []);
 
@@ -152,12 +178,13 @@ function CameraPageInner() {
     }
   }, [programContext]);
 
-  // Auto-save when plan reaches 'complete'. Read setResults from the ref so
-  // we always get the value written in the same synchronous batch as the dispatch.
+  // Auto-save when plan reaches 'complete'.
   useEffect(() => {
-    if (planState.phase === 'complete' && setResultsRef.current.length > 0) {
-      doSaveMultiSetSession(setResultsRef.current);
-    }
+    if (planState.phase !== 'complete' || setResultsRef.current.length === 0) return;
+    const ds = daySessionRef.current;
+    const exIdx = currentExIdxRef.current;
+    const isLast = !ds || exIdx >= ds.exercises.length - 1;
+    doSaveAndAdvance(setResultsRef.current, isLast);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [planState.phase]);
 
@@ -313,23 +340,51 @@ function CameraPageInner() {
     setSaveMessage('');
   }
 
-  async function doSaveMultiSetSession(setResults: typeof planState.setResults) {
+  async function doSaveAndAdvance(setResults: typeof planState.setResults, isLast: boolean) {
     if (!userId) { setSaveMessage('Login required to save.'); return; }
-    if (setResults.length === 0) { setSaveMessage('Complete at least one set before saving.'); return; }
+    if (setResults.length === 0) return;
     const durationMs = planStartWallMsRef.current > 0 ? Date.now() - planStartWallMsRef.current : 0;
     const score = aggregateSetResults(selectedExercise, setResults, durationMs);
-    console.log('[doSaveMultiSetSession] setResults:', JSON.stringify(setResults));
-    console.log('[doSaveMultiSetSession] score:', JSON.stringify(score));
+    const ds = daySessionRef.current;
+    const exIdx = currentExIdxRef.current;
     const { error: saveError, prResult: pr } = await saveWorkoutSession(userId, selectedExercise, score.repCount, score, {
-      programId: programContext?.programId,
-      dayIndex: programContext?.dayIndex,
+      programId: ds?.programId ?? programContext?.programId,
+      // Only pass dayIndex on last exercise so progress counter increments once per day
+      dayIndex: isLast ? (ds?.dayIndex ?? programContext?.dayIndex) : undefined,
       setResults,
     });
     if (saveError) { setSaveMessage(saveError.message); return; }
-    setSessionScore(score);
     if (pr) setPrResult(pr);
     setSaveMessage('');
-    stopCamera();
+
+    if (isLast) {
+      setSessionScore(score);
+      stopCamera();
+    } else if (ds) {
+      const nextIdx = exIdx + 1;
+      const nextEx = ds.exercises[nextIdx];
+      // Record completed sets for this exercise
+      setCompletedExSets(prev => {
+        const copy = [...prev];
+        copy[exIdx] = planState.config.targetSets;
+        return copy;
+      });
+      setCurrentExIdx(nextIdx);
+      currentExIdxRef.current = nextIdx;
+      setManualReps(0);
+      // Reset plan and advance exercise
+      dispatch({ type: 'RESET' });
+      handleExerciseChange(nextEx.exercise_id);
+      dispatch({ type: 'UPDATE_CONFIG', config: { targetSets: nextEx.sets, targetReps: nextEx.reps, restSeconds: nextEx.rest_seconds } });
+      if (isCameraRunning) dispatch({ type: 'START' });
+      planStartWallMsRef.current = Date.now();
+    }
+  }
+
+  async function doSaveMultiSetSession(setResults: typeof planState.setResults) {
+    const ds = daySessionRef.current;
+    const isLast = !ds || currentExIdxRef.current >= ds.exercises.length - 1;
+    await doSaveAndAdvance(setResults, isLast);
   }
 
   async function handleSaveSession() {
@@ -370,8 +425,19 @@ function CameraPageInner() {
     resetSession();
   }
 
+  function handleManualCompleteSet() {
+    dispatch({ type: 'COMPLETE_SET', repCount: manualReps, formScore: 0 });
+    setManualReps(0);
+  }
+
   function handleSummaryDone() {
-    setSessionScore(null);
+    const ds = daySessionRef.current;
+    if (ds?.programSlug) {
+      sessionStorage.removeItem('workout_day_session');
+      router.push(`/programs/${ds.programSlug}`);
+    } else {
+      setSessionScore(null);
+    }
   }
 
   function handleAnotherSet() {
@@ -434,23 +500,57 @@ function CameraPageInner() {
 
   const exerciseName = getExerciseConfig(selectedExercise).name;
 
+  const activeDay = daySession ?? (programContext ? {
+    programId: programContext.programId, programSlug: programContext.programSlug,
+    dayIndex: programContext.dayIndex, dayLabel: `Day ${programContext.dayIndex + 1}`,
+    exercises: [{ exercise_id: programContext.exerciseId, sets: programContext.targetSets, reps: programContext.targetReps, rest_seconds: programContext.restSeconds }],
+  } : null);
+
   return (
     <div className="camera-page-root">
-      {programContext && (
-        <div className="program-context-banner">
-          <span>Day {programContext.dayIndex + 1}</span>
-          <span>{programContext.targetSets} sets × {programContext.targetReps} reps</span>
-          <span style={{ color: 'var(--muted)', fontSize: '0.82rem' }}>{programContext.exerciseId}</span>
-        </div>
-      )}
 
       <div className="camera-page-layout">
         {/* ── Camera column ── */}
         <div className="camera-col-left">
           <div className="camera-preview-wrap">
             <div className="camera-preview">
-              <video ref={videoRef} playsInline muted />
-              <canvas ref={canvasRef} />
+              <video ref={videoRef} playsInline muted style={{ display: useCameraMode ? undefined : 'none' }} />
+              <canvas ref={canvasRef} style={{ display: useCameraMode ? undefined : 'none' }} />
+              {!useCameraMode && (
+                <div style={{
+                  position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 20,
+                  background: 'var(--bg-card)',
+                }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 11, color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 8 }}>
+                      {(activeDay?.exercises[currentExIdx]?.exercise_id ?? selectedExercise).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                    </p>
+                    <div style={{ fontSize: 72, fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', lineHeight: 1 }}>
+                      {manualReps}
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+                      reps / {activeDay?.exercises[currentExIdx]?.reps ?? planState.config.targetReps}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12 }}>
+                    <button type="button" onClick={() => setManualReps(r => Math.max(0, r - 1))}
+                      style={{ width: 52, height: 52, borderRadius: 12, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Minus size={22} />
+                    </button>
+                    <button type="button" onClick={() => setManualReps(r => r + 1)}
+                      style={{ width: 52, height: 52, borderRadius: 12, border: 'none', background: 'var(--accent)', color: 'var(--text-on-lime)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Plus size={22} />
+                    </button>
+                  </div>
+                  <button type="button" onClick={handleManualCompleteSet}
+                    disabled={planState.phase === 'resting' || planState.phase === 'complete'}
+                    className="btn btn-primary"
+                    style={{ minWidth: 160 }}>
+                    <Flag size={15} /> Complete Set {planState.currentSet} / {planState.config.targetSets}
+                  </button>
+                </div>
+              )}
               {prResult && <PRBadge result={prResult} />}
 
               {/* Exercise picker + Turn Off Camera */}
@@ -523,6 +623,87 @@ function CameraPageInner() {
 
         {/* ── Right column: data panel ── */}
         <div className="camera-col-right">
+
+          {/* Workout day panel */}
+          {activeDay && (
+            <div style={{
+              background: 'var(--bg-card)', border: '1px solid var(--border)',
+              borderRadius: 14, padding: '14px 16px', marginBottom: 10,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 2px' }}>
+                    Program Workout
+                  </p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+                    {activeDay.dayLabel}
+                  </p>
+                </div>
+                {/* Camera / Manual toggle */}
+                <div style={{ display: 'flex', gap: 4, background: 'var(--bg-input)', borderRadius: 8, padding: 3 }}>
+                  {(['camera', 'manual'] as const).map(mode => (
+                    <button key={mode} type="button"
+                      onClick={() => { setUseCameraMode(mode === 'camera'); if (mode === 'camera' && !isCameraRunning) {} else if (mode === 'manual') stopCamera(); }}
+                      style={{
+                        padding: '5px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                        background: (mode === 'camera') === useCameraMode ? 'var(--bg-card-raised)' : 'transparent',
+                        color: (mode === 'camera') === useCameraMode ? 'var(--text-primary)' : 'var(--text-muted)',
+                        fontSize: 11, fontWeight: 600, fontFamily: 'inherit',
+                        textTransform: 'capitalize', transition: 'all 0.15s',
+                      }}>
+                      {mode}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Exercise list */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {activeDay.exercises.map((ex, i) => {
+                  const isCurrent = i === currentExIdx;
+                  const isDone = completedExSets[i] >= ex.sets || i < currentExIdx;
+                  const setsCompleted = i < currentExIdx ? ex.sets : i === currentExIdx ? planState.setResults.length : 0;
+                  return (
+                    <div key={i} style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '8px 10px', borderRadius: 10,
+                      background: isCurrent ? 'var(--accent-muted)' : 'transparent',
+                      border: isCurrent ? '1px solid var(--border-active)' : '1px solid transparent',
+                      transition: 'all 0.2s',
+                    }}>
+                      <div style={{ flexShrink: 0 }}>
+                        {isDone
+                          ? <CheckCircle2 size={16} color="var(--accent)" />
+                          : isCurrent
+                            ? <ChevronRight size={16} color="var(--accent)" />
+                            : <Circle size={16} color="var(--text-muted)" />
+                        }
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 12, fontWeight: isCurrent ? 700 : 500, color: isDone ? 'var(--text-muted)' : 'var(--text-primary)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {ex.exercise_id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                        </p>
+                        {/* Set progress dots */}
+                        <div style={{ display: 'flex', gap: 3, marginTop: 3 }}>
+                          {Array.from({ length: ex.sets }, (_, si) => (
+                            <div key={si} style={{
+                              width: si < setsCompleted ? 14 : 8, height: 4, borderRadius: 2,
+                              background: si < setsCompleted ? 'var(--accent)' : 'var(--border)',
+                              transition: 'all 0.2s',
+                            }} />
+                          ))}
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 4, lineHeight: '4px', alignSelf: 'center' }}>
+                            {setsCompleted}/{ex.sets} · {ex.reps} reps
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div className="cam-control-panel">
 
             {planState.phase === 'resting' && (
@@ -535,34 +716,28 @@ function CameraPageInner() {
 
             {planState.phase !== 'resting' && (
               <>
-                {!isCameraRunning && planState.phase === 'idle' && (
+                {planState.phase === 'idle' && (
                   <>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-full"
-                      onClick={startCamera}
-                      style={{ marginBottom: 4 }}
-                    >
-                      <Play size={18} strokeWidth={2} /> Start Camera
-                    </button>
-                    <WorkoutConfigPanel
-                      config={{
-                        targetSets: planState.config.targetSets,
-                        targetReps: planState.config.targetReps,
-                        restSeconds: planState.config.restSeconds,
-                      }}
-                      onChange={cfg => dispatch({ type: 'UPDATE_CONFIG', config: cfg })}
-                    />
+                    {useCameraMode ? (
+                      <button type="button" className="btn btn-primary btn-full" onClick={startCamera} style={{ marginBottom: 4 }}>
+                        <Play size={18} strokeWidth={2} /> Start Camera
+                      </button>
+                    ) : (
+                      <button type="button" className="btn btn-primary btn-full" onClick={() => { dispatch({ type: 'START' }); }} style={{ marginBottom: 4 }}>
+                        <Play size={18} strokeWidth={2} /> Start Workout
+                      </button>
+                    )}
+                    {!activeDay && (
+                      <WorkoutConfigPanel
+                        config={{ targetSets: planState.config.targetSets, targetReps: planState.config.targetReps, restSeconds: planState.config.restSeconds }}
+                        onChange={cfg => dispatch({ type: 'UPDATE_CONFIG', config: cfg })}
+                      />
+                    )}
                   </>
                 )}
 
-                {isMultiSet && isCameraRunning && planState.phase === 'active' && (
-                  <button
-                    type="button"
-                    className="btn btn-primary btn-full"
-                    onClick={handleCompleteSet}
-                    style={{ marginBottom: 4 }}
-                  >
+                {isMultiSet && useCameraMode && isCameraRunning && planState.phase === 'active' && (
+                  <button type="button" className="btn btn-primary btn-full" onClick={handleCompleteSet} style={{ marginBottom: 4 }}>
                     <Flag size={16} strokeWidth={2} />
                     Complete Set {planState.currentSet}
                   </button>
