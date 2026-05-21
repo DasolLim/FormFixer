@@ -3,6 +3,8 @@ import '@/styles/globals.css';
 import { Navbar } from '@/components/layout/Navbar';
 import { PageContainer } from '@/components/layout/PageContainer';
 import ServiceWorkerRegistrar from '@/components/layout/ServiceWorkerRegistrar';
+import { XPProvider } from '@/components/providers/XPProvider';
+import { LevelUpModal } from '@/components/ui/LevelUpModal';
 
 export const metadata: Metadata = {
   title: 'FormFixer',
@@ -23,9 +25,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
       <body>
-        <ServiceWorkerRegistrar />
-        <Navbar />
-        <PageContainer>{children}</PageContainer>
+        <XPProvider>
+          <ServiceWorkerRegistrar />
+          <Navbar />
+          <PageContainer>{children}</PageContainer>
+          <LevelUpModal />
+        </XPProvider>
       </body>
     </html>
   );
