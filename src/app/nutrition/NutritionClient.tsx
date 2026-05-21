@@ -37,6 +37,8 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
   const [searchQuery, setSearchQuery]           = useState('');
   const [searchResults, setSearchResults]       = useState<UsdaSearchItem[]>([]);
   const [isSearching, setIsSearching]           = useState(false);
+  const [isFetchingFood, setIsFetchingFood]     = useState(false);
+  const [foodFetchError, setFoodFetchError]     = useState<string | null>(null);
   const [dailyItems, setDailyItems]             = useState<MealItemRow[]>([]);
   const [recentSearches, setRecentSearches]     = useState<string[]>([]);
   const [goalsSaveError, setGoalsSaveError]     = useState<string | null>(null);
@@ -105,19 +107,38 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
   }
 
   async function selectUsdaFood(fdcId: number) {
-    const response = await fetch(`/api/usda/food/${fdcId}`);
-    const json = await response.json();
-    setFoodName(json.description ?? 'USDA Food');
-    setServingAmount(Number(json.servingSize ?? 100));
-    setServingUnit(json.servingUnit ?? 'g');
-    const per100 = json.macrosPer100g ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
-    const ratio  = Number(json.servingSize ?? 100) / 100;
-    setMacros({
-      calories: Number((per100.calories * ratio).toFixed(1)),
-      protein:  Number((per100.protein  * ratio).toFixed(1)),
-      carbs:    Number((per100.carbs    * ratio).toFixed(1)),
-      fats:     Number((per100.fats     * ratio).toFixed(1)),
-    });
+    setIsFetchingFood(true);
+    setFoodFetchError(null);
+    try {
+      const response = await fetch(`/api/usda/food/${fdcId}`);
+      const json = await response.json();
+
+      if (!response.ok || json.error) {
+        setFoodFetchError(json.error ?? 'Failed to load food details.');
+        return;
+      }
+
+      const per100  = json.macrosPer100g ?? { calories: 0, protein: 0, carbs: 0, fats: 0 };
+      const serving = Number(json.servingSize ?? 100);
+      const ratio   = serving / 100;
+
+      setFoodName(json.description ?? '');
+      setServingAmount(serving);
+      setServingUnit(json.servingUnit ?? 'g');
+      setMacros({
+        calories: Number((per100.calories * ratio).toFixed(1)),
+        protein:  Number((per100.protein  * ratio).toFixed(1)),
+        carbs:    Number((per100.carbs    * ratio).toFixed(1)),
+        fats:     Number((per100.fats     * ratio).toFixed(1)),
+      });
+      setSearchResults([]);
+      setSearchQuery('');
+    } catch (err) {
+      setFoodFetchError('Network error loading food details.');
+      console.error('[selectUsdaFood]', err);
+    } finally {
+      setIsFetchingFood(false);
+    }
   }
 
   async function handleSaveGoals(newGoals: NutritionGoals) {
@@ -326,26 +347,18 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
               <div className="nutrition-results-scroll" style={{ marginTop: 12 }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {searchResults.map(item => (
-                    <div
+                    <button
                       key={item.fdcId}
+                      type="button"
                       className="nutrition-food-result"
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}
+                      onClick={() => selectUsdaFood(item.fdcId)}
+                      disabled={isFetchingFood}
                     >
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <span className="nutrition-food-result-name">{item.description}</span>
-                        {item.brandOwner && (
-                          <span className="nutrition-food-result-brand">{item.brandOwner}</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-ghost"
-                        style={{ height: 32, padding: '0 12px', fontSize: 12, flexShrink: 0 }}
-                        onClick={() => selectUsdaFood(item.fdcId)}
-                      >
-                        + Log
-                      </button>
-                    </div>
+                      <span className="nutrition-food-result-name">{item.description}</span>
+                      {item.brandOwner && (
+                        <span className="nutrition-food-result-brand">{item.brandOwner}</span>
+                      )}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -353,8 +366,14 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
           </Card>
 
           {/* Log a Meal form */}
-          <Card title="Log a Meal">
+          <Card title="Log a Meal" id="log-a-meal-form">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 8 }}>
+            {isFetchingFood && (
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: 0 }}>Loading food details…</p>
+            )}
+            {foodFetchError && (
+              <p style={{ fontSize: 13, color: 'var(--danger)', margin: 0 }}>{foodFetchError}</p>
+            )}
               <label className="form-label">
                 Meal type
                 <select
