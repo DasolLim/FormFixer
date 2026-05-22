@@ -25,7 +25,7 @@ import { SessionSummaryPanel } from '@/components/ui/SessionSummaryPanel';
 import { ExerciseInfoCard } from '@/components/ui/ExerciseInfoCard';
 import { WorkoutConfigPanel } from '@/components/ui/WorkoutConfigPanel';
 import { RestTimer } from '@/components/ui/RestTimer';
-import { Play, Flag, CameraOff, CheckCircle2, Circle, ChevronRight, Minus, Plus } from 'lucide-react';
+import { Play, Flag, Camera, CameraOff, CheckCircle2, Circle, ChevronRight, Minus, Plus } from 'lucide-react';
 import PRBadge from '@/components/ui/PRBadge';
 import { SessionSidePanel } from '@/components/ui/SessionSidePanel';
 import type { PRCheckResult } from '@/lib/workouts/records';
@@ -92,6 +92,10 @@ function CameraPageInner() {
 
   const exercises = useMemo(
     () => EXERCISE_IDS.slice(0, 6).map(id => ({ id, name: getExerciseConfig(id).name })),
+    []
+  );
+  const allExercises = useMemo(
+    () => EXERCISE_IDS.map(id => ({ id, name: getExerciseConfig(id).name })),
     []
   );
 
@@ -531,6 +535,30 @@ function CameraPageInner() {
             <div className="camera-preview">
               <video ref={videoRef} playsInline muted style={{ display: useCameraMode ? undefined : 'none' }} />
               <canvas ref={canvasRef} style={{ display: useCameraMode ? undefined : 'none' }} />
+              {useCameraMode && !isCameraRunning && (
+                <div style={{
+                  position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                  alignItems: 'center', justifyContent: 'center', gap: 16,
+                  background: 'var(--bg-page)',
+                }}>
+                  <div style={{
+                    width: 64, height: 64, borderRadius: '50%',
+                    background: 'var(--bg-card-raised)', border: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    <CameraOff size={28} color="var(--text-muted)" strokeWidth={1.5} />
+                  </div>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: 0 }}>Camera is off</p>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={startCamera}
+                    style={{ gap: 8, paddingLeft: 20, paddingRight: 20 }}
+                  >
+                    <Camera size={16} strokeWidth={2} /> Turn on camera
+                  </button>
+                </div>
+              )}
               {!useCameraMode && (
                 <div style={{
                   position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
@@ -580,17 +608,15 @@ function CameraPageInner() {
                     <option key={id} value={id}>{getExerciseConfig(id).name}</option>
                   ))}
                 </select>
-                {isCameraRunning && (
-                  <button
-                    type="button"
-                    className="btn btn-ghost"
-                    onClick={handleTurnOffCamera}
-                    aria-label="Turn off camera"
-                    style={{ height: 42, padding: '0 14px', flexShrink: 0, borderRadius: 11, background: 'rgba(16,16,16,0.84)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: '1px solid rgba(255,255,255,0.1)' }}
-                  >
-                    <CameraOff size={16} strokeWidth={1.5} />
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={isCameraRunning ? handleTurnOffCamera : startCamera}
+                  aria-label={isCameraRunning ? 'Turn off camera' : 'Turn on camera'}
+                  style={{ height: 42, padding: '0 14px', flexShrink: 0, borderRadius: 11, background: 'rgba(16,16,16,0.84)', backdropFilter: 'blur(14px)', WebkitBackdropFilter: 'blur(14px)', border: `1px solid ${isCameraRunning ? 'rgba(255,255,255,0.1)' : 'rgba(213,255,95,0.35)'}`, color: isCameraRunning ? undefined : 'var(--accent)' }}
+                >
+                  {isCameraRunning ? <CameraOff size={16} strokeWidth={1.5} /> : <Camera size={16} strokeWidth={1.5} />}
+                </button>
               </div>
 
               {/* Set badge */}
@@ -766,6 +792,7 @@ function CameraPageInner() {
 
                 <SessionSidePanel
                   exercises={exercises}
+                  allExercises={allExercises}
                   selectedExercise={selectedExercise}
                   onExerciseChange={handleExerciseChange}
                   formScore={getCurrentFormScore()}
