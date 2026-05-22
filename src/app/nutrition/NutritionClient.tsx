@@ -9,6 +9,10 @@ import { getSupabaseClient } from '@/lib/supabaseClient';
 import { addMealItem, fetchDailyMealItems, saveNutritionGoals } from '@/lib/nutrition/sessions';
 import type { MacroInput, MealItemRow, MealType, NutritionGoals, UsdaSearchItem } from '@/lib/nutrition/types';
 import { Search, Settings } from 'lucide-react';
+import { rlLimited, rlIncrement, rlRemaining, rlResetLabel } from '@/lib/rate-limit';
+
+const FOOD_SEARCH_KEY = 'food_search';
+const FOOD_SEARCH_MAX = 25;
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'dinner', 'snack'];
 
@@ -95,12 +99,17 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
 
   async function handleSearchFood(query = searchQuery) {
     if (!query.trim()) return;
+    if (rlLimited(FOOD_SEARCH_KEY, FOOD_SEARCH_MAX, 'day')) {
+      setMessage(`Search limit reached (${FOOD_SEARCH_MAX}/day). Resets at ${rlResetLabel('day')}.`);
+      return;
+    }
     setIsSearching(true);
     try {
       const response = await fetch(`/api/usda/search?q=${encodeURIComponent(query)}`);
       const json = await response.json();
       setSearchResults(json.foods ?? []);
       setRecentSearches(prev => [query, ...prev.filter(r => r !== query)].slice(0, 5));
+      rlIncrement(FOOD_SEARCH_KEY, 'day');
     } finally {
       setIsSearching(false);
     }
@@ -335,11 +344,15 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
                 placeholder="Search USDA database…"
                 className="nutrition-search-input"
                 onKeyDown={e => e.key === 'Enter' && handleSearchFood()}
+                disabled={rlLimited(FOOD_SEARCH_KEY, FOOD_SEARCH_MAX, 'day')}
               />
-              <button type="button" className="nutrition-search-btn" onClick={() => handleSearchFood()}>
+              <button type="button" className="nutrition-search-btn" onClick={() => handleSearchFood()} disabled={rlLimited(FOOD_SEARCH_KEY, FOOD_SEARCH_MAX, 'day')}>
                 <Search size={18} strokeWidth={1.5} />
               </button>
             </div>
+            <p style={{ fontSize: 11, color: rlLimited(FOOD_SEARCH_KEY, FOOD_SEARCH_MAX, 'day') ? 'var(--color-warn)' : 'var(--text-muted)', marginTop: 4 }}>
+              {rlRemaining(FOOD_SEARCH_KEY, FOOD_SEARCH_MAX, 'day')} of {FOOD_SEARCH_MAX} searches remaining today
+            </p>
             {isSearching && (
               <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 12 }}>Searching…</p>
             )}
