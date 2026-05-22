@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'formfixer-v1'
+const CACHE_VERSION = 'gymfxr-v1'
 const STATIC_CACHE = `${CACHE_VERSION}-static`
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`
 
@@ -36,6 +36,10 @@ self.addEventListener('fetch', (event) => {
 
   if (request.method !== 'GET') return
   if (url.hostname.includes('supabase.co')) return
+  // Never cache API routes — they return user-specific authenticated data
+  if (url.pathname.startsWith('/api/')) return
+  // Let the browser handle Google Fonts natively (avoids connect-src issues)
+  if (url.hostname.includes('fonts.googleapis.com') || url.hostname.includes('fonts.gstatic.com')) return
 
   // MediaPipe CDN — cache-first (WASM files are immutable)
   if (url.origin === MEDIAPIPE_ORIGIN) {

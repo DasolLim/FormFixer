@@ -1,6 +1,6 @@
 {
-  "name": "FormFixer",
-  "short_name": "FormFixer",
+  "name": "GymFXR",
+  "short_name": "GymFXR",
   "description": "Real-time AI fitness coaching with pose detection",
   "start_url": "/dashboard",
   "display": "standalone",
