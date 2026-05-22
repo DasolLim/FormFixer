@@ -1,8 +1,31 @@
 'use client';
 
-import { useEffect } from 'react';
 import { getExerciseConfig } from '@/features/form-engine/exercise-config';
 import { Button } from '@/components/ui/Button';
+
+// YouTube video IDs for each exercise — replace any ID to update the reference video
+const EXERCISE_VIDEOS: Record<string, string> = {
+  squat:            'aclHkVaku9U',
+  push_up:          'IODxDxX7oi4',
+  sit_up:           'jDwoBqPH0jk',
+  bicep_curl:       'ykJmrZ5v0Oo',
+  lateral_raise:    '3VcKaXpzqRo',
+  overhead_press:   '2yjwXTZQDDg',
+  leg_raise:        'l4kQd9eWclE',
+  knee_raise:       'l4kQd9eWclE',
+  crunch:           'Xyd_fa5zoEU',
+  pull_up:          'eGo4IYlbE5g',
+  incline_db_press: '8iPEnn-ltC8',
+  tricep_pushdown:  '2-LAMcpzODU',
+  face_pull:        'rep4bpAt_gs',
+  arnold_press:     '6Z15_WdXmVw',
+  seated_cable_row: 'GZbfZ033f74',
+  sumo_squat:       'VJFXV-oM_SQ',
+  wall_sit:         'y-wV4Venusw',
+  step_up:          'dQqApCGd5Ss',
+  calf_raise:       'gwLzBv3i0S4',
+  nordic_curl:      'F-ohrNO9MoU',
+};
 
 const CAMERA_ANGLE_LABEL: Record<string, string> = {
   front: 'Face the camera directly',
@@ -38,41 +61,94 @@ export interface ExerciseInfoCardProps {
 export function ExerciseInfoCard({ exerciseId, onStart }: ExerciseInfoCardProps) {
   const config = getExerciseConfig(exerciseId);
   const checks = config.formChecks.map(c => ISSUE_LABELS[c.id] ?? c.id);
-
-  // Auto-dismiss after 5 seconds
-  useEffect(() => {
-    const t = setTimeout(onStart, 5000);
-    return () => clearTimeout(t);
-  }, [onStart]);
+  const videoId = EXERCISE_VIDEOS[exerciseId];
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--surface, #0F172A)', border: '1px solid var(--border)', borderRadius: 16, padding: 28, maxWidth: 420, width: '100%', display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <h2 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)' }}>{config.name}</h2>
+    <div style={{
+      position: 'fixed', inset: 0,
+      background: 'rgba(0,0,0,0.72)',
+      zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16,
+    }}>
+      <div style={{
+        background: 'var(--surface, #0F172A)',
+        border: '1px solid var(--border)',
+        borderRadius: 18,
+        padding: 0,
+        maxWidth: 440,
+        width: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+      }}>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', minWidth: 90 }}>Camera</span>
-            <span style={{ fontSize: 14, color: 'var(--text)' }}>{CAMERA_ANGLE_LABEL[config.cameraAngle] ?? config.cameraAngle}</span>
-          </div>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', minWidth: 90 }}>Tracks</span>
-            <span style={{ fontSize: 14, color: 'var(--text)' }}>
-              {config.isUnilateral ? 'Left + right side independently' : 'Both sides together'}
-            </span>
-          </div>
-          {checks.length > 0 && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--muted)', minWidth: 90 }}>Checks</span>
-              <span style={{ fontSize: 14, color: 'var(--text)' }}>{checks.join(', ')}</span>
+        {/* ── YouTube embed ── */}
+        {videoId && (
+          <>
+            <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: '#000' }}>
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}?rel=0&modestbranding=1`}
+                title={`${config.name} reference video`}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{
+                  position: 'absolute', inset: 0,
+                  width: '100%', height: '100%',
+                  border: 'none',
+                }}
+              />
             </div>
-          )}
+            <div style={{ padding: '6px 24px 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+              <p style={{ margin: 0, fontSize: 11, color: 'var(--muted)', lineHeight: 1.4 }}>
+                Video via YouTube. Not affiliated with GymFXR.
+              </p>
+              <a
+                href={`https://www.youtube.com/watch?v=${videoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: 'var(--accent)',
+                  textDecoration: 'none',
+                  flexShrink: 0,
+                }}
+              >
+                Link ↗
+              </a>
+            </div>
+          </>
+        )}
+
+        {/* ── Info section ── */}
+        <div style={{ padding: '22px 24px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: 'var(--text)' }}>{config.name}</h2>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <InfoRow label="Camera" value={CAMERA_ANGLE_LABEL[config.cameraAngle] ?? config.cameraAngle} />
+            <InfoRow
+              label="Tracks"
+              value={config.isUnilateral ? 'Left + right side independently' : 'Both sides together'}
+            />
+            {checks.length > 0 && (
+              <InfoRow label="Checks" value={checks.join(', ')} />
+            )}
+          </div>
+
+          <Button onClick={onStart}>Start</Button>
         </div>
 
-        <p style={{ margin: 0, fontSize: 12, color: 'var(--muted)' }}>Auto-starting in 5 seconds…</p>
-
-        <Button onClick={onStart}>Start</Button>
       </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', minWidth: 76, paddingTop: 1 }}>{label}</span>
+      <span style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.4 }}>{value}</span>
     </div>
   );
 }

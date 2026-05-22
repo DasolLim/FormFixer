@@ -93,11 +93,30 @@ function extractJson(text: string): string {
   return text.trim();
 }
 
+const AI_GEN_DAILY_LIMIT = 3;
+
 export async function POST(req: NextRequest) {
   const supabase = getSupabaseServer();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Server-side rate limit: count AI programs created by this user today
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const { count } = await supabase
+    .from('programs')
+    .select('id', { count: 'exact', head: true })
+    .eq('author_id', user.id)
+    .eq('is_ai_generated', true)
+    .gte('created_at', todayStart.toISOString());
+
+  if ((count ?? 0) >= AI_GEN_DAILY_LIMIT) {
+    return NextResponse.json(
+      { error: `Daily limit of ${AI_GEN_DAILY_LIMIT} AI programs reached. Resets at midnight.` },
+      { status: 429 }
+    );
   }
 
   let body: RequestBody;

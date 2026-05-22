@@ -8,6 +8,7 @@ type CueItem = {
 
 type SessionSidePanelProps = {
   exercises: ExerciseOption[];
+  allExercises?: ExerciseOption[];
   selectedExercise: string;
   onExerciseChange: (id: string) => void;
   formScore: number;
@@ -25,6 +26,7 @@ function cueDotColor(severity: CueItem['severity']): string {
 
 export function SessionSidePanel({
   exercises,
+  allExercises,
   selectedExercise,
   onExerciseChange,
   formScore,
@@ -35,6 +37,9 @@ export function SessionSidePanel({
   onSave,
   isCameraRunning,
 }: SessionSidePanelProps) {
+  const extraExercises = allExercises?.filter(ex => !exercises.some(e => e.id === ex.id)) ?? [];
+  const selectedIsExtra = extraExercises.some(e => e.id === selectedExercise);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
@@ -84,10 +89,10 @@ export function SessionSidePanel({
         )}
       </div>
 
-      {/* ── Exercise picker grid (6 blocks) ── */}
+      {/* ── Popular exercises grid + browse all ── */}
       <div className="card">
         <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', margin: '0 0 10px' }}>
-          Exercise
+          Popular Exercises
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {exercises.slice(0, 6).map(ex => {
@@ -117,6 +122,38 @@ export function SessionSidePanel({
             );
           })}
         </div>
+
+        {extraExercises.length > 0 && (
+          <div style={{ marginTop: 12, position: 'relative' }}>
+            <select
+              value={selectedIsExtra ? selectedExercise : ''}
+              onChange={e => { if (e.target.value) onExerciseChange(e.target.value); }}
+              style={{
+                width: '100%',
+                height: 40,
+                padding: '0 36px 0 12px',
+                borderRadius: 10,
+                border: selectedIsExtra ? '1.5px solid var(--accent)' : '1px solid var(--border)',
+                background: selectedIsExtra ? 'var(--accent-muted)' : 'var(--bg-card-raised)',
+                color: selectedIsExtra ? 'var(--accent)' : 'var(--text-secondary)',
+                fontSize: 12,
+                fontWeight: selectedIsExtra ? 700 : 500,
+                fontFamily: 'inherit',
+                cursor: 'pointer',
+                appearance: 'none',
+                backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23${selectedIsExtra ? 'D5FF5F' : '8892A0'}' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+                backgroundRepeat: 'no-repeat',
+                backgroundPosition: 'right 12px center',
+                outline: 'none',
+              }}
+            >
+              <option value="" disabled>More exercises…</option>
+              {extraExercises.map(ex => (
+                <option key={ex.id} value={ex.id}>{ex.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {/* ── Voice cues toggle ── */}

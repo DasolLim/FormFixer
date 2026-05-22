@@ -1,8 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { ProgramTemplate } from '@/lib/programs/types';
+import { rlLimited, rlRemaining, rlIncrement, rlResetLabel } from '@/lib/rate-limit';
+
+const AI_GEN_KEY = 'ai_generate';
+const AI_GEN_MAX = 3;
 
 type Difficulty = 'beginner' | 'intermediate' | 'advanced';
 type Goal       = 'lose' | 'maintain' | 'gain';
@@ -50,8 +54,15 @@ export default function GenerateProgramPage() {
   const [generating, setGenerating]         = useState(false);
   const [generatedProgram, setGeneratedProgram] = useState<ProgramTemplate | null>(null);
   const [error, setError]                   = useState<string | null>(null);
+  const [remaining, setRemaining]           = useState(AI_GEN_MAX);
+
+  useEffect(() => { setRemaining(rlRemaining(AI_GEN_KEY, AI_GEN_MAX, 'day')); }, []);
 
   async function generate() {
+    if (rlLimited(AI_GEN_KEY, AI_GEN_MAX, 'day')) {
+      setError(`Daily limit reached (${AI_GEN_MAX}/day). Resets at ${rlResetLabel('day')}.`);
+      return;
+    }
     setGenerating(true);
     setError(null);
     try {
@@ -67,6 +78,8 @@ export default function GenerateProgramPage() {
         return;
       }
       setGeneratedProgram(json.program ?? null);
+      const used = rlIncrement(AI_GEN_KEY, 'day');
+      setRemaining(Math.max(0, AI_GEN_MAX - used));
       setStep(TOTAL_STEPS + 1);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Network error');
@@ -206,14 +219,19 @@ export default function GenerateProgramPage() {
             {error && (
               <p style={{ color: 'var(--color-warn)', fontSize: '0.85rem', marginTop: 8 }}>{error}</p>
             )}
-            <div style={{ display: 'flex', gap: 10, marginTop: 20 }}>
+            <p style={{ fontSize: 12, color: remaining > 0 ? 'var(--text-muted)' : 'var(--color-warn)', marginTop: 12, textAlign: 'center' }}>
+              {remaining > 0
+                ? `${remaining} of ${AI_GEN_MAX} generations remaining today`
+                : `Daily limit reached — resets at ${rlResetLabel('day')}`}
+            </p>
+            <div style={{ display: 'flex', gap: 10, marginTop: 12 }}>
               <button type="button" className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setStep(4)}>Back</button>
               <button
                 type="button"
                 className="btn btn-primary"
                 style={{ flex: 2 }}
                 onClick={generate}
-                disabled={generating}
+                disabled={generating || remaining === 0}
               >
                 {generating ? 'Generating...' : 'Generate Program'}
               </button>
