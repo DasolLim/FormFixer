@@ -10,7 +10,7 @@ function validateCredentials(email: string, password: string, isSignup: boolean,
   if (!trimmedEmail) return 'Email is required.';
   if (!trimmedEmail.includes('@')) return 'Please enter a valid email.';
   if (!password) return 'Password is required.';
-  if (password.length < 6) return 'Password must be at least 6 characters.';
+  if (password.length < 8) return 'Password must be at least 8 characters.';
 
   if (isSignup) {
     if (password !== confirmPassword) return 'Password and confirm password must match.';
@@ -133,7 +133,7 @@ export default function LoginPage() {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="itsnaeemanjum@gmail.com"
+            placeholder="you@example.com"
             className="auth-input"
             autoComplete="email"
             required
