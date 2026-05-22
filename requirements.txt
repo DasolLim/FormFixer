@@ -1,2 +1,0 @@
-# Python dependency for optional ngrok helper workflow
-pyngrok==7.2.8
