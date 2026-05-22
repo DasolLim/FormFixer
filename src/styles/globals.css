@@ -220,6 +220,9 @@ button:active, a:active {
 .navbar-icon-btn:hover { background: var(--bg-card); }
 
 .navbar-auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 36px;
   padding: 0 16px;
   border-radius: 999px;
@@ -232,6 +235,7 @@ button:active, a:active {
   transition: background 0.15s ease;
   white-space: nowrap;
   font-family: inherit;
+  text-decoration: none;
 }
 
 .navbar-auth-btn:hover { background: var(--bg-card-raised); color: var(--text-primary); }

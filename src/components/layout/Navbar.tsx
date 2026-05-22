@@ -100,16 +100,16 @@ export function Navbar() {
       <header className="navbar">
         {/* Mobile: greeting */}
         <div className="navbar-user">
-          <div className="avatar-placeholder">FF</div>
+          <div className="avatar-placeholder">GX</div>
           <div className="navbar-greeting">
             <span className="navbar-greeting-sub">Welcome back</span>
-            <span className="navbar-greeting-name">FormFixer</span>
+            <span className="navbar-greeting-name">GymFXR</span>
           </div>
         </div>
 
         {/* Desktop: brand */}
         <Link href="/" className="navbar-brand-wrap">
-          FormFixer
+          GymFXR
         </Link>
 
         {/* Desktop: nav links */}
@@ -132,7 +132,7 @@ export function Navbar() {
         <div className="navbar-end">
           {!mounted || !isAuthed ? (
             <Link href="/login" className="navbar-auth-btn">
-              Sign in
+              Login
             </Link>
           ) : (
             <>
