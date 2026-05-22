@@ -29,7 +29,8 @@ export interface ExerciseConfig {
   anglePoint: [number, number, number];
   repThresholds: RepThresholds;
   formChecks: FormCheckConfig[];
-  calibrationMode?: 'standing' | 'prone' | 'hanging';
+  calibrationMode?: 'standing' | 'prone' | 'hanging' | 'seated' | 'kneeling';
+  isIsometric?: boolean;
   calibrationLandmarks?: number[];
   minVisibilityOverrides?: Record<string, number>;
   smoothingAlpha?: number;

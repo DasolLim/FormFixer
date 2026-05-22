@@ -11,7 +11,7 @@ export type CalibrationGateConfig = {
   maxMotionPerFrame: number;
   minShoulderHipHeightDelta: number;
   orientation: CalibrationOrientation;
-  calibrationMode?: 'standing' | 'prone' | 'hanging';
+  calibrationMode?: 'standing' | 'prone' | 'hanging' | 'seated' | 'kneeling';
   calibrationLandmarks?: number[];
 };
 
@@ -83,6 +83,25 @@ export class CalibrationGate {
       if (!wristsAbove) {
         this.reset();
         return { ready: false, message: 'Hang from the bar and hold still', stableFrames: 0, orientation };
+      }
+    } else if (mode === 'seated') {
+      const wHip  = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_HIP, 0);
+      const wKnee = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_KNEE, 0);
+      if (wHip && wKnee && Math.abs(wHip.y - wKnee.y) > 0.20) {
+        this.reset();
+        return { ready: false, message: 'Sit in position and hold still', stableFrames: 0, orientation };
+      }
+    } else if (mode === 'kneeling') {
+      const wShoulder = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_SHOULDER, 0);
+      const wHip      = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_HIP, 0);
+      const wKnee     = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_KNEE, 0);
+      const upright   = wShoulder && wHip && wKnee &&
+        Math.abs(wKnee.y - wHip.y) < 0.15 &&
+        wShoulder.y > wHip.y + 0.30 &&
+        verticalLeanDeg(wShoulder, wHip) < 15;
+      if (!upright) {
+        this.reset();
+        return { ready: false, message: 'Kneel upright with feet anchored and hold still', stableFrames: 0, orientation };
       }
     } else {
       // standing
