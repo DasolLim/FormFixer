@@ -38,7 +38,7 @@ const steps = [
   {
     num: '01',
     title: 'Open Camera',
-    desc: 'Grant camera access and position yourself in frame. FormFixer auto-calibrates to your body in seconds.',
+    desc: 'Grant camera access and position yourself in frame. GymFXR auto-calibrates to your body in seconds.',
   },
   {
     num: '02',
@@ -87,7 +87,7 @@ export default function HomePage() {
               </h1>
 
               <p className="home-hero-body">
-                FormFixer uses your camera to analyze exercise form in real time —
+                GymFXR uses your camera to analyze exercise form in real time —
                 giving live audio and visual cues so you build strength safely.
                 No trainer required.
               </p>
@@ -311,7 +311,7 @@ export default function HomePage() {
               Your best reps start <em>now.</em>
             </h2>
             <p className="home-cta-sub">
-              Free to start. No equipment needed. Just you, your camera, and FormFixer.
+              Free to start. No equipment needed. Just you, your camera, and GymFXR.
             </p>
             <div style={{ display: 'flex', justifyContent: 'center' }}>
               <Link href="/camera" className="home-cta-primary">
@@ -326,7 +326,7 @@ export default function HomePage() {
       <footer className="home-footer">
         <div className="home-inner">
           <div className="home-footer-inner">
-            <span className="home-footer-brand">FormFixer</span>
+            <span className="home-footer-brand">GymFXR</span>
 
             <nav className="home-footer-links">
               <Link href="/dashboard"  className="home-footer-link">Dashboard</Link>
@@ -334,10 +334,10 @@ export default function HomePage() {
               <Link href="/programs"   className="home-footer-link">Programs</Link>
               <Link href="/nutrition"  className="home-footer-link">Nutrition</Link>
               <Link href="/social"     className="home-footer-link">Social</Link>
-              <Link href="/login"      className="home-footer-link">Sign in</Link>
+              <Link href="/login"      className="home-footer-link">Login</Link>
             </nav>
 
-            <p className="home-footer-copy">© 2025 FormFixer · David Lim</p>
+            <p className="home-footer-copy">© 2025 GymFXR · David Lim</p>
           </div>
         </div>
       </footer>

@@ -7,7 +7,7 @@ import { XPProvider } from '@/components/providers/XPProvider';
 import { LevelUpModal } from '@/components/ui/LevelUpModal';
 
 export const metadata: Metadata = {
-  title: 'FormFixer',
+  title: 'GymFXR',
   description: 'Real-time exercise form support with camera-based posture analysis.'
 };
 
