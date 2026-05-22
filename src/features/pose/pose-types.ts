@@ -83,8 +83,14 @@ export function getLandmark(frame: NormalizedPoseFrame, index: number) {
   return frame.landmarks[index] ?? null;
 }
 
-export function getWorldLandmark(frame: NormalizedPoseFrame, index: number) {
-  return frame.worldLandmarks[index] ?? null;
+export function getWorldLandmark(
+  frame: NormalizedPoseFrame,
+  index: number,
+  minVisibility = 0.6
+): PoseLandmark | null {
+  const lm = frame.worldLandmarks[index];
+  if (!lm || (lm.visibility ?? 1) < minVisibility) return null;
+  return lm;
 }
 
 export function landmarkScore(point: PoseLandmark | null) {

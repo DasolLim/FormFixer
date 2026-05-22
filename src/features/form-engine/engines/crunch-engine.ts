@@ -59,11 +59,15 @@ export class CrunchEngine extends GenericExerciseEngine {
     }
 
     if ((base.repCount ?? 0) > repBefore) {
-      if (this.minAngleThisRep > 155) {
+      if (this.minAngleThisRep > 130) {
         formIssues.push({ id: 'crunch_range', severity: 'warning', message: 'Curl higher' });
       }
       this.minAngleThisRep = 180;
       this.prioritizer.onRepCompleted(formIssues.some(i => i.severity === 'error' || i.severity === 'warning'));
+    }
+
+    if (calibration.ready && formIssues.length > 0) {
+      this.scorer.patchLastFrameIssues(formIssues);
     }
 
     const topCues = this.prioritizer.getTopCues(formIssues);

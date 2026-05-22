@@ -8,7 +8,9 @@ interface RepData {
   repNumber: number;
   minAngle: number;
   maxSymmetryDiff: number;
-  formIssuesPerFrame: FormIssue[][];
+  errorFrames: number;
+  warningFrames: number;
+  issueIds: Set<string>;
   descentMs: number;
   completedAt: number;
 }
@@ -17,6 +19,8 @@ export class RepScorer {
   private currentRepData: RepData | null = null;
   private repNumber = 0;
   private _descentStart = 0;
+  private lastFrameErrorCount = 0;
+  private lastFrameWarningCount = 0;
 
   constructor(private config: ExerciseConfig) {}
 
@@ -26,11 +30,15 @@ export class RepScorer {
       repNumber: this.repNumber,
       minAngle: Infinity,
       maxSymmetryDiff: 0,
-      formIssuesPerFrame: [],
+      errorFrames: 0,
+      warningFrames: 0,
+      issueIds: new Set(),
       descentMs: 0,
       completedAt: 0,
     };
     this._descentStart = timestampMs;
+    this.lastFrameErrorCount = 0;
+    this.lastFrameWarningCount = 0;
   }
 
   recordFrame(
@@ -45,10 +53,46 @@ export class RepScorer {
     this.currentRepData.minAngle = Math.min(this.currentRepData.minAngle, primaryAngle);
     const diff = Math.abs(leftAngle - rightAngle);
     this.currentRepData.maxSymmetryDiff = Math.max(this.currentRepData.maxSymmetryDiff, diff);
-    this.currentRepData.formIssuesPerFrame.push(formIssues);
-    // Record descent duration on the first BOTTOM frame (time from startRep to reaching bottom).
+
+    formIssues.forEach(i => this.currentRepData!.issueIds.add(i.id));
+    const hasError = formIssues.some(i => i.severity === 'error');
+    const hasWarning = !hasError && formIssues.some(i => i.severity === 'warning');
+    if (hasError) {
+      this.currentRepData.errorFrames++;
+      this.lastFrameErrorCount = 1;
+      this.lastFrameWarningCount = 0;
+    } else if (hasWarning) {
+      this.currentRepData.warningFrames++;
+      this.lastFrameWarningCount = 1;
+      this.lastFrameErrorCount = 0;
+    } else {
+      this.lastFrameErrorCount = 0;
+      this.lastFrameWarningCount = 0;
+    }
+
     if (phase === 'BOTTOM' && this.currentRepData.descentMs === 0) {
       this.currentRepData.descentMs = timestampMs - this._descentStart;
+    }
+  }
+
+  patchLastFrameIssues(issues: FormIssue[]): void {
+    if (!this.currentRepData) return;
+    this.currentRepData.errorFrames -= this.lastFrameErrorCount;
+    this.currentRepData.warningFrames -= this.lastFrameWarningCount;
+    issues.forEach(i => this.currentRepData!.issueIds.add(i.id));
+    const hasError = issues.some(i => i.severity === 'error');
+    const hasWarning = issues.some(i => i.severity === 'warning');
+    if (hasError) {
+      this.currentRepData.errorFrames++;
+      this.lastFrameErrorCount = 1;
+      this.lastFrameWarningCount = 0;
+    } else if (hasWarning) {
+      this.currentRepData.warningFrames++;
+      this.lastFrameWarningCount = 1;
+      this.lastFrameErrorCount = 0;
+    } else {
+      this.lastFrameErrorCount = 0;
+      this.lastFrameWarningCount = 0;
     }
   }
 
@@ -56,29 +100,22 @@ export class RepScorer {
     if (!this.currentRepData) return null;
     const data = { ...this.currentRepData, completedAt: timestampMs };
     this.currentRepData = null;
+    this.lastFrameErrorCount = 0;
+    this.lastFrameWarningCount = 0;
     return this._scoreRep(data);
   }
 
   private _scoreRep(data: RepData): RepScore {
     const { reversedDirection, downAngle, upAngle } = this.config.repThresholds;
 
-    // Depth: measures how close to the required extreme the rep reached.
-    // For normal exercises (squat, push-up): need minAngle ≤ downAngle.
-    // For reversed exercises (bicep curl, pull-up): need minAngle ≤ upAngle.
     const depthTarget = reversedDirection ? upAngle : downAngle;
     const shortfall = Math.max(0, data.minAngle - depthTarget);
     const depth = Math.max(0, Math.min(100, 100 - shortfall * 2));
 
-    // Symmetry: penalize left/right angle imbalance.
     const symmetry = Math.max(0, Math.min(100, 100 - data.maxSymmetryDiff * 3));
 
-    // Form: penalize error and warning frames.
-    const allIssues = data.formIssuesPerFrame.flat();
-    const errorCount = allIssues.filter(i => i.severity === 'error').length;
-    const warningCount = allIssues.filter(i => i.severity === 'warning').length;
-    const form = Math.max(0, Math.min(100, 100 - errorCount * 15 - warningCount * 5));
+    const form = Math.max(0, Math.min(100, 100 - data.errorFrames * 15 - data.warningFrames * 5));
 
-    // Tempo: descentMs === 0 means no timing measurement available → neutral score.
     const d = data.descentMs;
     let tempo: number;
     if (d === 0) {
@@ -92,7 +129,6 @@ export class RepScorer {
     }
 
     const overall = depth * 0.30 + symmetry * 0.25 + form * 0.35 + tempo * 0.10;
-    const issueIds = [...new Set(allIssues.map(i => i.id))];
 
     return {
       repNumber: data.repNumber,
@@ -101,7 +137,7 @@ export class RepScorer {
       symmetry: Math.round(symmetry),
       form: Math.round(form),
       tempo: Math.round(tempo),
-      issueIds,
+      issueIds: [...data.issueIds],
       timestampMs: data.completedAt,
     };
   }
@@ -110,5 +146,7 @@ export class RepScorer {
     this.currentRepData = null;
     this.repNumber = 0;
     this._descentStart = 0;
+    this.lastFrameErrorCount = 0;
+    this.lastFrameWarningCount = 0;
   }
 }

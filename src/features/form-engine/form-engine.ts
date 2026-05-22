@@ -1,10 +1,13 @@
 import type { NormalizedPoseFrame } from '@/features/pose/pose-types';
 import type { RepScore } from '@/features/form-engine/scoring-types';
 
+export type CameraOrientation = 'front' | 'left' | 'right';
+
 export type CalibrationStatus = {
   ready: boolean;
   message: string;
   stableFrames: number;
+  orientation?: CameraOrientation;
 };
 
 export type EnginePhase = 'NOT_READY' | 'READY' | 'DESCENDING' | 'BOTTOM' | 'ASCENDING' | 'LOCKOUT';

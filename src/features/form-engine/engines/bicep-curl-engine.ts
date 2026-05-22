@@ -69,6 +69,10 @@ export class BicepCurlEngine extends GenericExerciseEngine {
       this.prioritizer.onRepCompleted(formIssues.some(i => i.severity === 'error' || i.severity === 'warning'));
     }
 
+    if (calibration.ready && formIssues.length > 0) {
+      this.scorer.patchLastFrameIssues(formIssues);
+    }
+
     const topCues = this.prioritizer.getTopCues(formIssues);
     const primaryCue = calibration.ready ? (topCues[0]?.text ?? base.primaryCue) : calibration.message;
     return { ...base, formIssues, topCues, primaryCue };

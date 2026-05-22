@@ -5,6 +5,9 @@
       "isUnilateral": false,
       "cameraAngle": "front",
       "primary_muscles": ["quads", "glutes", "hamstrings"],
+      "calibrationMode": "standing",
+      "calibrationLandmarks": [23, 24, 25, 26, 27, 28, 11, 12],
+      "minVisibilityOverrides": { "29": 0.72, "30": 0.72 },
       "landmarks": {
         "left":  [23, 25, 27],
         "right": [24, 26, 28]
@@ -22,6 +25,9 @@
       "isUnilateral": false,
       "cameraAngle": "side",
       "primary_muscles": ["chest", "triceps", "shoulders"],
+      "calibrationMode": "standing",
+      "calibrationLandmarks": [11, 12, 13, 14, 15, 16, 23, 24],
+      "minVisibilityOverrides": { "15": 0.72, "16": 0.72 },
       "landmarks": {
         "left":  [11, 13, 15],
         "right": [12, 14, 16]
@@ -39,6 +45,8 @@
       "isUnilateral": false,
       "cameraAngle": "side",
       "primary_muscles": ["core"],
+      "calibrationMode": "prone",
+      "calibrationLandmarks": [11, 12, 23, 24, 27, 28],
       "landmarks": {
         "left":  [11, 23, 27],
         "right": [12, 24, 28]
@@ -56,6 +64,9 @@
       "isUnilateral": false,
       "cameraAngle": "front",
       "primary_muscles": ["biceps"],
+      "calibrationMode": "standing",
+      "calibrationLandmarks": [11, 12, 13, 14, 15, 16],
+      "minVisibilityOverrides": { "15": 0.72, "16": 0.72, "19": 0.72, "20": 0.72 },
       "landmarks": {
         "left":  [11, 13, 15],
         "right": [12, 14, 16]
@@ -73,6 +84,8 @@
       "isUnilateral": false,
       "cameraAngle": "front",
       "primary_muscles": ["shoulders"],
+      "calibrationMode": "standing",
+      "calibrationLandmarks": [11, 12, 13, 14, 23, 24],
       "landmarks": {
         "left":  [23, 11, 13],
         "right": [24, 12, 14]
@@ -90,6 +103,8 @@
       "isUnilateral": false,
       "cameraAngle": "front",
       "primary_muscles": ["shoulders", "triceps"],
+      "calibrationMode": "standing",
+      "calibrationLandmarks": [11, 12, 13, 14, 15, 16, 23, 24],
       "landmarks": {
         "left":  [23, 11, 13],
         "right": [24, 12, 14]
@@ -107,6 +122,8 @@
       "isUnilateral": true,
       "cameraAngle": "side",
       "primary_muscles": ["core", "hip_flexors"],
+      "calibrationMode": "prone",
+      "calibrationLandmarks": [11, 12, 23, 24, 25, 26, 27, 28],
       "landmarks": {
         "left":  [11, 23, 27],
         "right": [12, 24, 28]
@@ -124,6 +141,8 @@
       "isUnilateral": true,
       "cameraAngle": "front",
       "primary_muscles": ["core", "hip_flexors", "quads"],
+      "calibrationMode": "standing",
+      "calibrationLandmarks": [23, 24, 25, 26, 27, 28],
       "landmarks": {
         "left":  [23, 25, 27],
         "right": [24, 26, 28]
@@ -141,15 +160,17 @@
       "isUnilateral": false,
       "cameraAngle": "side",
       "primary_muscles": ["core"],
+      "calibrationMode": "prone",
+      "calibrationLandmarks": [11, 12, 23, 24, 27, 28],
       "landmarks": {
         "left":  [11, 23, 27],
         "right": [12, 24, 28]
       },
       "anglePoint": [11, 23, 27],
       "repThresholds": {
-        "downAngle": 170,
-        "upAngle": 150,
-        "reversedDirection": false
+        "downAngle": 165,
+        "upAngle": 120,
+        "reversedDirection": true
       },
       "formChecks": []
     },
@@ -158,6 +179,8 @@
       "isUnilateral": false,
       "cameraAngle": "front",
       "primary_muscles": ["back", "biceps"],
+      "calibrationMode": "hanging",
+      "calibrationLandmarks": [11, 12, 13, 14, 15, 16, 23, 24],
       "landmarks": {
         "left":  [11, 13, 15],
         "right": [12, 14, 16]

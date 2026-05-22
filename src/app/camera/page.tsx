@@ -136,7 +136,7 @@ function CameraPageInner() {
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionStartWallMsRef = useRef<number>(0);
   const planStartWallMsRef = useRef<number>(0);
-  const { speakCue, cancelCue } = useSpeechCue(5000);
+  const { speakCue, cancelCue, resetCues } = useSpeechCue(5000);
 
   const calibrationGateRef = useRef(
     new CalibrationGate({
@@ -144,7 +144,9 @@ function CameraPageInner() {
       requiredStableFrames: 12,
       maxMotionPerFrame: 0.015,
       minShoulderHipHeightDelta: 0.04,
-      orientation: 'auto',
+      orientation: 'front',
+      calibrationMode: 'standing',
+      calibrationLandmarks: [23, 24, 25, 26, 27, 28, 11, 12],
     })
   );
 
@@ -277,7 +279,17 @@ function CameraPageInner() {
   function handleExerciseChange(exerciseId: string) {
     engineRef.current.reset();
     engineRef.current = getEngine(exerciseId);
-    calibrationGateRef.current.reset();
+    const exConfig = getExerciseConfig(exerciseId);
+    calibrationGateRef.current = new CalibrationGate({
+      minVisibility: DEFAULT_SQUAT_ENGINE_CONFIG.confidence.minVisibility,
+      requiredStableFrames: 12,
+      maxMotionPerFrame: 0.015,
+      minShoulderHipHeightDelta: 0.04,
+      orientation: exConfig.cameraAngle === 'front' ? 'front' : exConfig.cameraAngle === 'side' ? 'side' : 'auto',
+      calibrationMode: exConfig.calibrationMode ?? 'standing',
+      calibrationLandmarks: exConfig.calibrationLandmarks ?? [11, 12, 23, 24, 25, 26, 27, 28],
+    });
+    resetCues();
     setSelectedExercise(exerciseId);
     dispatch({ type: 'UPDATE_CONFIG', config: { exerciseId } });
     setRepCount(0);
@@ -300,6 +312,7 @@ function CameraPageInner() {
   function resetSession() {
     engineRef.current.reset();
     calibrationGateRef.current.reset();
+    resetCues();
     resetWorkoutSessionState(sessionRef.current);
     dispatch({ type: 'RESET' });
     setRepCount(0);

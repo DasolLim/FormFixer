@@ -18,7 +18,7 @@ export class GenericExerciseEngine implements ExerciseFormEngine {
   private stateMachine: RepCounterStateMachine;
   private leftSmoother: AngleSmoother;
   private rightSmoother: AngleSmoother;
-  private repScorer: RepScorer;
+  protected scorer: RepScorer;
   private repScoresAcc: RepScore[] = [];
   protected prevRepCount = 0;
   private repActive = false;
@@ -30,14 +30,14 @@ export class GenericExerciseEngine implements ExerciseFormEngine {
     this.stateMachine = new RepCounterStateMachine(this.config);
     this.leftSmoother = new AngleSmoother();
     this.rightSmoother = new AngleSmoother();
-    this.repScorer = new RepScorer(this.config);
+    this.scorer = new RepScorer(this.config);
   }
 
   reset(): void {
     this.stateMachine.reset();
     this.leftSmoother.reset();
     this.rightSmoother.reset();
-    this.repScorer.reset();
+    this.scorer.reset();
     this.repScoresAcc = [];
     this.prevRepCount = 0;
     this.repActive = false;
@@ -54,43 +54,47 @@ export class GenericExerciseEngine implements ExerciseFormEngine {
 
     const leftAngle = this.leftSmoother.update(rawLeftAngle);
     const rightAngle = this.rightSmoother.update(rawRightAngle);
-    const primaryAngle = (leftAngle + rightAngle) / 2;
+
+    // For side-facing exercises, use only the visible side as primary angle
+    let primaryAngle: number;
+    if (this.config.cameraAngle === 'side') {
+      primaryAngle = calibration.orientation === 'right' ? rightAngle : leftAngle;
+    } else {
+      primaryAngle = (leftAngle + rightAngle) / 2;
+    }
 
     const sm = this.stateMachine.update(leftAngle, rightAngle, frame.timestampMs);
 
-    // Rep scoring: always keep a rep active so every frame is recorded.
     if (!this.repActive) {
-      this.repScorer.startRep(frame.timestampMs);
+      this.scorer.startRep(frame.timestampMs);
       this.repActive = true;
     }
 
-    // Derive a rough phase for descent timing: 'BOTTOM' when angle reaches the target zone.
     const { reversedDirection, downAngle } = this.config.repThresholds;
     const atBottom = reversedDirection ? primaryAngle >= downAngle : primaryAngle <= downAngle;
-    this.repScorer.recordFrame(primaryAngle, leftAngle, rightAngle, [], atBottom ? 'BOTTOM' : 'DESCENDING', frame.timestampMs);
+    this.scorer.recordFrame(primaryAngle, leftAngle, rightAngle, [], atBottom ? 'BOTTOM' : 'DESCENDING', frame.timestampMs);
 
     if (sm.repCount > this.prevRepCount) {
-      const score = this.repScorer.completeRep(frame.timestampMs);
+      const score = this.scorer.completeRep(frame.timestampMs);
       if (score) this.repScoresAcc.push(score);
       this.prevRepCount = sm.repCount;
-      this.repActive = false; // will be restarted next frame
+      this.repActive = false;
     }
 
-    // Symmetry drift detection
-    const symmetryDrift = Math.abs(leftAngle - rightAngle)
+    const symmetryDrift = Math.abs(leftAngle - rightAngle);
     if (symmetryDrift > 12) {
-      this.symmetryDriftFrames++
+      this.symmetryDriftFrames++;
     } else {
-      this.symmetryDriftFrames = 0
+      this.symmetryDriftFrames = 0;
     }
 
-    const topCues: FeedbackCue[] = []
+    const topCues: FeedbackCue[] = [];
     if (this.symmetryDriftFrames >= 3 && !this.config.isUnilateral) {
       topCues.push({
         text: 'Keep both sides even',
         voiceText: 'Keep both sides even — watch your symmetry',
         severity: 'warning',
-      })
+      });
     }
 
     const primaryCue = calibration.ready

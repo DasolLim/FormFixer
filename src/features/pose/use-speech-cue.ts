@@ -37,5 +37,10 @@ export function useSpeechCue(debounceMs = 5000) {
     synthRef.current?.cancel()
   }, [])
 
-  return { speakCue, cancelCue }
+  const resetCues = useCallback(() => {
+    lastSpokenRef.current.clear()
+    synthRef.current?.cancel()
+  }, [])
+
+  return { speakCue, cancelCue, resetCues }
 }

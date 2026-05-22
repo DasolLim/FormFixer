@@ -38,15 +38,19 @@ export type RepCounterConfig = {
   angleSmoothingAlpha: number;
 };
 
+const SQUAT_PHASE_TIMEOUT_MS = 6000;
+
 export class SquatRepCounterStateMachine {
   private state: EngineState = { phase: 'NOT_READY', repCount: 0, lastRepTimestampMs: -1e9 };
   private smoothedAngle = 180;
+  private phaseEnteredMs = -1e9;
 
   constructor(private config: RepCounterConfig) {}
 
   reset() {
     this.state = { phase: 'NOT_READY', repCount: 0, lastRepTimestampMs: -1e9 };
     this.smoothedAngle = 180;
+    this.phaseEnteredMs = -1e9;
   }
 
   update(kneeAngle: number, ready: boolean, timestampMs: number) {
@@ -62,12 +66,25 @@ export class SquatRepCounterStateMachine {
 
     if ((phase === 'READY' || phase === 'LOCKOUT') && this.smoothedAngle < this.config.descendStartAngle) {
       this.state.phase = 'DESCENDING';
+      this.phaseEnteredMs = -1e9;
     } else if (phase === 'DESCENDING' && this.smoothedAngle < this.config.bottomAngle) {
+      if (this.state.phase !== 'BOTTOM') this.phaseEnteredMs = timestampMs;
       this.state.phase = 'BOTTOM';
     } else if (phase === 'BOTTOM' && this.smoothedAngle > this.config.ascendStartAngle) {
+      if (this.state.phase !== 'ASCENDING') this.phaseEnteredMs = timestampMs;
       this.state.phase = 'ASCENDING';
     } else if (phase === 'ASCENDING' && this.smoothedAngle > this.config.lockoutAngle) {
       this.state.phase = 'LOCKOUT';
+      this.phaseEnteredMs = -1e9;
+    }
+
+    // Timeout: if stuck in BOTTOM or ASCENDING for too long, reset to READY
+    if ((this.state.phase === 'BOTTOM' || this.state.phase === 'ASCENDING') &&
+        this.phaseEnteredMs > 0 &&
+        timestampMs - this.phaseEnteredMs > SQUAT_PHASE_TIMEOUT_MS) {
+      console.debug('[SquatCounter] Phase timeout — reset to READY');
+      this.state.phase = 'READY';
+      this.phaseEnteredMs = -1e9;
     }
 
     let repJustCounted = false;
@@ -96,15 +113,17 @@ export function toEnginePhase(phase: EnginePhase) {
 // ── Generic config-driven counter (used by GenericExerciseEngine) ─────────────
 
 const MIN_REP_COOLDOWN_MS = 500;
+const UP_STATE_TIMEOUT_MS = 5000;
 
 type SideState = {
   stage: 'READY' | 'UP' | 'DOWN';
   repCount: number;
   lastRepTimestampMs: number;
+  lastUpTimestampMs: number;
 };
 
 function makeSideState(): SideState {
-  return { stage: 'READY', repCount: 0, lastRepTimestampMs: -1e9 };
+  return { stage: 'READY', repCount: 0, lastRepTimestampMs: -1e9, lastUpTimestampMs: -1e9 };
 }
 
 function tickSide(
@@ -120,17 +139,21 @@ function tickSide(
   const isUpPosition = reversed ? angle < upThreshold : angle > upThreshold;
   const isDownPosition = reversed ? angle > downThreshold : angle < downThreshold;
 
-  let { stage, repCount, lastRepTimestampMs } = s;
+  let { stage, repCount, lastRepTimestampMs, lastUpTimestampMs } = s;
 
   if (isUpPosition) {
+    if (stage !== 'UP') lastUpTimestampMs = now;
     stage = 'UP';
+  } else if (stage === 'UP' && now - lastUpTimestampMs > UP_STATE_TIMEOUT_MS) {
+    console.debug('[RepCounter] Stale UP state reset after 5s timeout');
+    stage = 'READY';
   } else if (isDownPosition && stage === 'UP' && now - lastRepTimestampMs >= MIN_REP_COOLDOWN_MS) {
     repCount += 1;
     lastRepTimestampMs = now;
     stage = 'DOWN';
   }
 
-  return { stage, repCount, lastRepTimestampMs };
+  return { stage, repCount, lastRepTimestampMs, lastUpTimestampMs };
 }
 
 export class RepCounterStateMachine {
@@ -154,7 +177,6 @@ export class RepCounterStateMachine {
     const { upThreshold, downThreshold, reversed } = this;
 
     if (this.isUnilateral) {
-      // Each limb is tracked independently — cooldown is per side
       this.left = tickSide(this.left, leftAngle, upThreshold, downThreshold, reversed, timestampMs);
       this.right = tickSide(this.right, rightAngle, upThreshold, downThreshold, reversed, timestampMs);
       return {
@@ -167,7 +189,6 @@ export class RepCounterStateMachine {
       };
     }
 
-    // Bilateral: average both sides into one signal
     const avgAngle = (leftAngle + rightAngle) / 2;
     this.bilateral = tickSide(this.bilateral, avgAngle, upThreshold, downThreshold, reversed, timestampMs);
     return {
