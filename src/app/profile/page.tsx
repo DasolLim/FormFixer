@@ -1,6 +1,12 @@
 'use client';
 
-import { useEffect, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { rlLimited, rlIncrement, rlRemaining, rlResetLabel } from '@/lib/rate-limit';
+
+const DISPLAY_NAME_KEY = 'display_name_change';
+const DISPLAY_NAME_MAX = 2;
+const PASSWORD_KEY     = 'password_change';
+const PASSWORD_MAX     = 2;
 import { useRouter } from 'next/navigation';
 import { AuthGate } from '@/components/auth/AuthGate';
 import { Button } from '@/components/ui/Button';
@@ -133,6 +139,8 @@ function AccountTab({
   const [message, setMessage]                         = useState('');
   const [errMsg, setErrMsg]                           = useState('');
   const [, startTransition] = useTransition();
+  const privacyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [privacyBusy, setPrivacyBusy]                 = useState(false);
 
   useEffect(() => { setDisplayName(username); }, [username]);
 
@@ -145,13 +153,19 @@ function AccountTab({
 
   async function handleSaveUsername() {
     setMessage(''); setErrMsg('');
+    if (rlLimited(DISPLAY_NAME_KEY, DISPLAY_NAME_MAX, 'week')) {
+      setErrMsg(`You can only change your display name ${DISPLAY_NAME_MAX} times per week. Resets ${rlResetLabel('week')}.`);
+      return;
+    }
     const { error } = await supabase
       .from('profiles')
       .update({ username: displayName.trim() })
       .eq('id', userId);
     if (error) { setErrMsg(error.message); return; }
+    rlIncrement(DISPLAY_NAME_KEY, 'week');
     onUsernameChange(displayName.trim());
-    setMessage('Username updated.');
+    const left = rlRemaining(DISPLAY_NAME_KEY, DISPLAY_NAME_MAX, 'week');
+    setMessage(`Username updated. ${left} change${left === 1 ? '' : 's'} remaining this week.`);
   }
 
   async function handleLogout() {
@@ -159,22 +173,34 @@ function AccountTab({
     router.push('/login');
   }
 
-  async function handleTogglePrivacy() {
-    const next: PrivacyMode = privacyMode === 'public' ? 'private' : 'public';
-    await supabase.from('profiles').update({ privacy_mode: next }).eq('id', userId);
-    setPrivacyMode(next);
+  function handleTogglePrivacy() {
+    if (privacyBusy) return;
+    setPrivacyBusy(true);
+    if (privacyTimerRef.current) clearTimeout(privacyTimerRef.current);
+    privacyTimerRef.current = setTimeout(async () => {
+      const next: PrivacyMode = privacyMode === 'public' ? 'private' : 'public';
+      await supabase.from('profiles').update({ privacy_mode: next }).eq('id', userId);
+      setPrivacyMode(next);
+      setPrivacyBusy(false);
+    }, 250);
   }
 
   async function handleChangePassword() {
     setMessage(''); setErrMsg('');
+    if (rlLimited(PASSWORD_KEY, PASSWORD_MAX, 'week')) {
+      setErrMsg(`Password can only be changed ${PASSWORD_MAX} times per week. Resets ${rlResetLabel('week')}.`);
+      return;
+    }
     if (!newPassword) { setErrMsg('Enter a new password.'); return; }
     if (newPassword !== confirmPassword) { setErrMsg('Passwords do not match.'); return; }
     if (newPassword.length < 8) { setErrMsg('Password must be at least 8 characters.'); return; }
     const { error } = await supabase.auth.updateUser({ password: newPassword });
     if (error) { setErrMsg(error.message); return; }
+    rlIncrement(PASSWORD_KEY, 'week');
     setNewPassword(''); setConfirmPassword('');
     setShowPasswordForm(false);
-    setMessage('Password updated successfully.');
+    const left = rlRemaining(PASSWORD_KEY, PASSWORD_MAX, 'week');
+    setMessage(`Password updated. ${left} change${left === 1 ? '' : 's'} remaining this week.`);
   }
 
   function handleDeleteAccount() {
@@ -252,9 +278,14 @@ function AccountTab({
               <input className="form-input" type="password" value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repeat new password" autoComplete="new-password" />
             </FieldGroup>
-            <button className="btn btn-primary btn-full" onClick={handleChangePassword}>
+            <button className="btn btn-primary btn-full" onClick={handleChangePassword} disabled={rlLimited(PASSWORD_KEY, PASSWORD_MAX, 'week')}>
               Update Password
             </button>
+            <p style={{ fontSize: 11, color: rlLimited(PASSWORD_KEY, PASSWORD_MAX, 'week') ? 'var(--color-warn)' : 'var(--text-muted)', margin: '2px 0 0' }}>
+              {rlLimited(PASSWORD_KEY, PASSWORD_MAX, 'week')
+                ? `Limit reached — resets ${rlResetLabel('week')}`
+                : `${rlRemaining(PASSWORD_KEY, PASSWORD_MAX, 'week')} of ${PASSWORD_MAX} changes remaining this week`}
+            </p>
           </div>
         )}
 
@@ -313,6 +344,12 @@ function AccountTab({
 // Social tab
 // ---------------------------------------------------------------------------
 
+const MSG_TOTAL_KEY  = 'msg_total';
+const MSG_TOTAL_MAX  = 15;
+const MSG_FRIEND_MAX = 5;
+
+function msgFriendKey(friendId: string) { return `msg_friend_${friendId}`; }
+
 function SocialTab({ userId }: { userId: string }) {
   const [friends, setFriends]                         = useState<Array<{ id: string; profile: ProfileRow | null }>>([]);
   const [pending, setPending]                         = useState<Array<{ id: string; requester_id: string }>>([]);
@@ -362,6 +399,7 @@ function SocialTab({ userId }: { userId: string }) {
   }
 
   async function handleFriendAction(target: ProfileRow) {
+    if (outgoingIds.has(target.id)) { setErrMsg('You already have a pending request to this user.'); return; }
     const isFriend = await areFriends(userId, target.id);
     if (isFriend.error) { setErrMsg(isFriend.error.message); return; }
     if (isFriend.value) {
@@ -401,8 +439,17 @@ function SocialTab({ userId }: { userId: string }) {
 
   async function handleSendAlert() {
     if (!alertTargetId || !alertText.trim()) return;
+    if (alertText.length > 250) { setErrMsg('Message must be 250 characters or less.'); return; }
+    if (rlLimited(MSG_TOTAL_KEY, MSG_TOTAL_MAX, 'day')) {
+      setErrMsg(`Daily message limit reached (${MSG_TOTAL_MAX}/day). Resets at ${rlResetLabel('day')}.`); return;
+    }
+    if (rlLimited(msgFriendKey(alertTargetId), MSG_FRIEND_MAX, 'day')) {
+      setErrMsg(`You've already sent ${MSG_FRIEND_MAX} messages to this person today.`); return;
+    }
     try {
       await sendWorkoutAlert(userId, [alertTargetId], alertText.trim());
+      rlIncrement(MSG_TOTAL_KEY, 'day');
+      rlIncrement(msgFriendKey(alertTargetId), 'day');
       setMessage('Workout alert sent!');
       setAlertTargetId(null); setAlertText('');
     } catch (e) {
@@ -508,15 +555,18 @@ function SocialTab({ userId }: { userId: string }) {
                 </div>
                 {alertTargetId === p.id ? (
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input
-                      value={alertText}
-                      onChange={(e) => setAlertText(e.target.value)}
-                      placeholder="Alert message…"
-                      maxLength={120}
-                      style={{ height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, width: 160, fontFamily: 'inherit' }}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSendAlert()}
-                      autoFocus
-                    />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <input
+                        value={alertText}
+                        onChange={(e) => setAlertText(e.target.value.slice(0, 250))}
+                        placeholder="Alert message…"
+                        maxLength={250}
+                        style={{ height: 34, padding: '0 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-input)', color: 'var(--text-primary)', fontSize: 13, width: 160, fontFamily: 'inherit' }}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendAlert()}
+                        autoFocus
+                      />
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'right' }}>{alertText.length}/250</span>
+                    </div>
                     <button type="button" onClick={handleSendAlert} title="Send"
                       style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'var(--accent)', color: 'var(--text-on-lime)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Send size={14} />
