@@ -33,11 +33,10 @@ requirements.txt
 ARCHITECTURE.md
 Camera.md
 FEATURES.md
+STYLES.md
 
 # database
 supabase
 
 next-env.d.ts
 package-lock.json
-tsconfig.json
-.eslintcache
