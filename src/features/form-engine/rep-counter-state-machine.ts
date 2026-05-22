@@ -44,6 +44,7 @@ export class SquatRepCounterStateMachine {
   private state: EngineState = { phase: 'NOT_READY', repCount: 0, lastRepTimestampMs: -1e9 };
   private smoothedAngle = 180;
   private phaseEnteredMs = -1e9;
+  private lockoutFrameCount = 0;
 
   constructor(private config: RepCounterConfig) {}
 
@@ -51,6 +52,7 @@ export class SquatRepCounterStateMachine {
     this.state = { phase: 'NOT_READY', repCount: 0, lastRepTimestampMs: -1e9 };
     this.smoothedAngle = 180;
     this.phaseEnteredMs = -1e9;
+    this.lockoutFrameCount = 0;
   }
 
   update(kneeAngle: number, ready: boolean, timestampMs: number) {
@@ -73,9 +75,16 @@ export class SquatRepCounterStateMachine {
     } else if (phase === 'BOTTOM' && this.smoothedAngle > this.config.ascendStartAngle) {
       if (this.state.phase !== 'ASCENDING') this.phaseEnteredMs = timestampMs;
       this.state.phase = 'ASCENDING';
-    } else if (phase === 'ASCENDING' && this.smoothedAngle > this.config.lockoutAngle) {
-      this.state.phase = 'LOCKOUT';
-      this.phaseEnteredMs = -1e9;
+    } else if (phase === 'ASCENDING') {
+      if (this.smoothedAngle > this.config.lockoutAngle) {
+        this.lockoutFrameCount++;
+        if (this.lockoutFrameCount >= 3) {
+          this.state.phase = 'LOCKOUT';
+          this.phaseEnteredMs = -1e9;
+        }
+      } else {
+        this.lockoutFrameCount = 0;
+      }
     }
 
     // Timeout: if stuck in BOTTOM or ASCENDING for too long, reset to READY
@@ -96,6 +105,7 @@ export class SquatRepCounterStateMachine {
         repJustCounted = true;
       }
       this.state.phase = 'READY';
+      this.lockoutFrameCount = 0;
     }
 
     return { ...this.state, repJustCounted, smoothedAngle: this.smoothedAngle };

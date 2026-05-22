@@ -4,13 +4,14 @@ import { POSE_LANDMARKS, getWorldLandmark } from '@/features/pose/pose-types';
 import { GenericExerciseEngine } from './generic-exercise-engine';
 import { FeedbackPrioritizer } from '@/features/form-engine/feedback-prioritizer';
 import type { CueDef } from '@/features/form-engine/feedback-prioritizer';
-import { midpoint } from '@/features/form-engine/rules/angle';
+import { midpoint, verticalLeanDeg } from '@/features/form-engine/rules/angle';
 
 const CUE_DEFS: CueDef[] = [
-  { id: 'press_head_jut',        severity: 'warning', text: "Don't let your head jut forward", voiceText: 'Head back',    cooldownReps: 3 },
-  { id: 'press_lockout',         severity: 'warning', text: 'Lock out at the top',              voiceText: 'Full lockout', cooldownReps: 2 },
-  { id: 'press_imbalance',       severity: 'warning', text: 'Press both arms evenly',           voiceText: 'Even press',   cooldownReps: 3 },
-  { id: 'press_core_stability',  severity: 'warning', text: 'Brace your core',                  voiceText: 'Brace core',   cooldownReps: 3 },
+  { id: 'press_head_jut',       severity: 'warning', text: "Don't let your head jut forward",      voiceText: 'Head back',    cooldownReps: 3 },
+  { id: 'press_lockout',        severity: 'warning', text: 'Lock out at the top',                  voiceText: 'Full lockout', cooldownReps: 2 },
+  { id: 'press_imbalance',      severity: 'warning', text: 'Press both arms evenly',               voiceText: 'Even press',   cooldownReps: 3 },
+  { id: 'press_rib_flare',      severity: 'warning', text: "Keep your ribs down — brace your core", voiceText: 'Ribs down',   cooldownReps: 3 },
+  { id: 'press_core_stability', severity: 'warning', text: 'Brace your core',                      voiceText: 'Brace core',   cooldownReps: 3 },
 ];
 
 export class OverheadPressEngine extends GenericExerciseEngine {
@@ -57,8 +58,19 @@ export class OverheadPressEngine extends GenericExerciseEngine {
         formIssues.push({ id: 'press_imbalance', severity: 'warning', message: 'Press both arms evenly' });
       }
 
-      // 4. Core stability: hip lateral tilt
-      if (lHip && rHip && Math.abs(lHip.y - rHip.y) > 0.06) {
+      // 4. Rib flare / core stability: torso lean during press
+      if (lShoulder && rShoulder && lHip && rHip) {
+        const shoulderMid = midpoint(lShoulder, rShoulder);
+        const hipMid = midpoint(lHip, rHip);
+        const torsoLean = verticalLeanDeg(shoulderMid, hipMid);
+        if (torsoLean >= 18) {
+          formIssues.push({ id: 'press_core_stability', severity: 'error', message: 'Brace your core' });
+        } else if (torsoLean > 15) {
+          formIssues.push({ id: 'press_rib_flare', severity: 'warning', message: "Keep your ribs down — brace your core" });
+        } else if (Math.abs(lHip.y - rHip.y) > 0.06) {
+          formIssues.push({ id: 'press_core_stability', severity: 'warning', message: 'Brace your core' });
+        }
+      } else if (lHip && rHip && Math.abs(lHip.y - rHip.y) > 0.06) {
         formIssues.push({ id: 'press_core_stability', severity: 'warning', message: 'Brace your core' });
       }
     }

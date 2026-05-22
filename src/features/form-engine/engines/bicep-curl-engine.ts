@@ -7,10 +7,11 @@ import type { CueDef } from '@/features/form-engine/feedback-prioritizer';
 import { angleDeg } from '@/features/form-engine/rules/angle';
 
 const CUE_DEFS: CueDef[] = [
-  { id: 'curl_elbow_drift',     severity: 'error',   text: 'Pin your elbows to your sides',  voiceText: 'Elbows in',        cooldownReps: 1 },
-  { id: 'curl_wrist_break',     severity: 'warning',  text: 'Keep your wrists straight',      voiceText: 'Wrists straight',  cooldownReps: 3 },
-  { id: 'curl_full_extension',  severity: 'warning',  text: 'Fully extend at the bottom',     voiceText: 'Full extension',   cooldownReps: 2 },
-  { id: 'curl_imbalance',       severity: 'warning',  text: 'Even out both arms',             voiceText: 'Even arms',        cooldownReps: 3 },
+  { id: 'curl_elbow_drift',    severity: 'error',   text: 'Pin your elbows to your sides',                        voiceText: 'Elbows in',       cooldownReps: 1 },
+  { id: 'curl_wrist_break',    severity: 'warning', text: 'Keep your wrists straight',                            voiceText: 'Wrists straight', cooldownReps: 3 },
+  { id: 'curl_full_extension', severity: 'warning', text: 'Fully extend at the bottom',                          voiceText: 'Full extension',  cooldownReps: 2 },
+  { id: 'curl_imbalance',      severity: 'warning', text: 'Even out both arms',                                   voiceText: 'Even arms',       cooldownReps: 3 },
+  { id: 'curl_supination',     severity: 'warning', text: 'Rotate your palm toward the ceiling at the top',      voiceText: 'Rotate your palm', cooldownReps: 3 },
 ];
 
 export class BicepCurlEngine extends GenericExerciseEngine {
@@ -52,10 +53,16 @@ export class BicepCurlEngine extends GenericExerciseEngine {
         }
       }
 
-      // 3. Full extension: at bottom (arms extended), angle should reach ≥ 150°
-      if (base.leftAngle < 150 || base.rightAngle < 150) {
-        if (base.phase === 'UP' || base.phase === 'READY') {
-          formIssues.push({ id: 'curl_full_extension', severity: 'warning', message: 'Fully extend at the bottom' });
+      // 3. Full extension: at DOWN phase, arms should reach ≥ 155°
+      if (base.phase === 'DOWN' && (base.leftAngle < 155 || base.rightAngle < 155)) {
+        formIssues.push({ id: 'curl_full_extension', severity: 'warning', message: 'Fully extend at the bottom' });
+      }
+
+      // 4b. Supination: at UP phase, wrist should be in front of elbow (z-axis)
+      if (base.phase === 'UP') {
+        const lWrist = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_WRIST);
+        if (lElbow && lWrist && lWrist.z !== undefined && lElbow.z !== undefined && lWrist.z < lElbow.z - 0.02) {
+          formIssues.push({ id: 'curl_supination', severity: 'info', message: 'Rotate your palm toward the ceiling at the top' });
         }
       }
 

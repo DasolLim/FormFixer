@@ -5,8 +5,9 @@ import { FeedbackPrioritizer } from '@/features/form-engine/feedback-prioritizer
 import type { CueDef } from '@/features/form-engine/feedback-prioritizer';
 
 const CUE_DEFS: CueDef[] = [
-  { id: 'legraise_lower_back', severity: 'warning', text: 'Keep your lower back flat', voiceText: 'Back flat', cooldownReps: 2 },
-  { id: 'legraise_full_range', severity: 'warning', text: 'Raise your legs higher',    voiceText: 'Higher',    cooldownReps: 2 },
+  { id: 'legraise_lower_back', severity: 'warning', text: 'Keep your lower back flat',             voiceText: 'Back flat',    cooldownReps: 2 },
+  { id: 'legraise_full_range', severity: 'warning', text: 'Raise your legs higher',               voiceText: 'Higher',       cooldownReps: 2 },
+  { id: 'legraise_momentum',   severity: 'warning', text: 'Raise your legs slowly — no swinging', voiceText: 'Slow it down', cooldownReps: 2 },
 ];
 
 // LegRaiseEngine adds lower-back and full-range checks on top of GenericExerciseEngine.
@@ -14,6 +15,8 @@ const CUE_DEFS: CueDef[] = [
 export class LegRaiseEngine extends GenericExerciseEngine {
   private readonly prioritizer = new FeedbackPrioritizer(CUE_DEFS);
   private minAngleThisRep = 180;
+  private prevPrimaryAngle = 180;
+  private momentumFrames = 0;
 
   constructor() { super('leg_raise'); }
 
@@ -21,6 +24,8 @@ export class LegRaiseEngine extends GenericExerciseEngine {
     super.reset();
     this.prioritizer.reset();
     this.minAngleThisRep = 180;
+    this.prevPrimaryAngle = 180;
+    this.momentumFrames = 0;
   }
 
   override update(frame: NormalizedPoseFrame, calibration: CalibrationStatus): EngineOutput {
@@ -34,11 +39,22 @@ export class LegRaiseEngine extends GenericExerciseEngine {
       // Track minimum angle reached this rep (lower angle = legs more raised)
       this.minAngleThisRep = Math.min(this.minAngleThisRep, primaryAngle);
 
-      // 1. Lower back: near the bottom of the lowering phase (angle approaching 180°),
-      //    if angle exceeds 175° the hips are likely hyperextending
+      // 1. Lower back: near the bottom of the lowering phase, hyperextension
       if (primaryAngle > 175) {
         formIssues.push({ id: 'legraise_lower_back', severity: 'warning', message: 'Keep lower back flat' });
       }
+
+      // 2. Momentum: >12° change per frame while rising, for 3+ consecutive frames
+      const rising = primaryAngle < this.prevPrimaryAngle;
+      if (rising && Math.abs(primaryAngle - this.prevPrimaryAngle) > 12) {
+        this.momentumFrames++;
+      } else {
+        this.momentumFrames = 0;
+      }
+      if (this.momentumFrames >= 3) {
+        formIssues.push({ id: 'legraise_momentum', severity: 'warning', message: 'Raise your legs slowly — no swinging' });
+      }
+      this.prevPrimaryAngle = primaryAngle;
     }
 
     if ((base.repCount ?? 0) > repBefore) {

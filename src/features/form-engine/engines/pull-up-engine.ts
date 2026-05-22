@@ -14,15 +14,16 @@ const CUE_DEFS: CueDef[] = [
 
 export class PullUpEngine extends GenericExerciseEngine {
   private readonly prioritizer = new FeedbackPrioritizer(CUE_DEFS);
-  private prevHipX = 0;
-  private hipXSet = false;
+  private hipXRepMin = Infinity;
+  private hipXRepMax = -Infinity;
 
   constructor() { super('pull_up'); }
 
   override reset(): void {
     super.reset();
     this.prioritizer.reset();
-    this.hipXSet = false;
+    this.hipXRepMin = Infinity;
+    this.hipXRepMax = -Infinity;
   }
 
   override update(frame: NormalizedPoseFrame, calibration: CalibrationStatus): EngineOutput {
@@ -52,13 +53,13 @@ export class PullUpEngine extends GenericExerciseEngine {
         formIssues.push({ id: 'pullup_full_hang', severity: 'warning', message: 'Fully extend at the bottom' });
       }
 
-      // 3. Kipping: excessive hip horizontal movement per frame
+      // 3. Kipping: rolling window of hip x range this rep
       const hipX = lHip ? lHip.x : (rHip?.x ?? 0);
-      if (this.hipXSet && Math.abs(hipX - this.prevHipX) > 0.03) {
+      this.hipXRepMin = Math.min(this.hipXRepMin, hipX);
+      this.hipXRepMax = Math.max(this.hipXRepMax, hipX);
+      if (this.hipXRepMax - this.hipXRepMin > 0.08) {
         formIssues.push({ id: 'pullup_kipping', severity: 'warning', message: 'Avoid kipping' });
       }
-      this.prevHipX = hipX;
-      this.hipXSet = true;
 
       // 4. Imbalance
       if (Math.abs(base.leftAngle - base.rightAngle) > 25) {
@@ -67,6 +68,8 @@ export class PullUpEngine extends GenericExerciseEngine {
     }
 
     if ((base.repCount ?? 0) > repBefore) {
+      this.hipXRepMin = Infinity;
+      this.hipXRepMax = -Infinity;
       this.prioritizer.onRepCompleted(formIssues.some(i => i.severity === 'error' || i.severity === 'warning'));
     }
 

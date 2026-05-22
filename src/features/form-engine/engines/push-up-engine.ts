@@ -17,11 +17,13 @@ function safeAngleDeg(a: PoseLandmark | null, b: PoseLandmark | null, c: PoseLan
 }
 
 const PUSH_UP_CUE_DEFS: CueDef[] = [
-  { id: 'push_up_depth',    severity: 'error',   text: 'Go lower — chest toward the ground', voiceText: 'Go lower',           cooldownReps: 1 },
-  { id: 'body_alignment',   severity: 'warning',  text: 'Keep your body in a straight line',  voiceText: 'Straight body',      cooldownReps: 3 },
-  { id: 'arm_symmetry',     severity: 'warning',  text: 'Steady your arms evenly',            voiceText: 'Even arms',          cooldownReps: 3 },
-  { id: 'wrist_placement',  severity: 'warning',  text: 'Hands under your shoulders',         voiceText: 'Hands under shoulders', cooldownReps: 4 },
-  { id: 'push_up_speed',    severity: 'warning',  text: 'Slow down, stay controlled',         voiceText: 'Slow down',          cooldownReps: 2 },
+  { id: 'push_up_depth',      severity: 'error',   text: 'Go lower — chest toward the ground',          voiceText: 'Go lower',              cooldownReps: 1 },
+  { id: 'pushup_hips_sag',    severity: 'error',   text: 'Raise your hips — keep a straight line',      voiceText: 'Hips up',               cooldownReps: 1 },
+  { id: 'pushup_hips_pike',   severity: 'warning', text: 'Lower your hips — straight line only',        voiceText: 'Hips down',             cooldownReps: 2 },
+  { id: 'pushup_elbow_flare', severity: 'warning', text: 'Tuck elbows closer to your body',             voiceText: 'Tuck elbows',           cooldownReps: 2 },
+  { id: 'arm_symmetry',       severity: 'warning', text: 'Steady your arms evenly',                     voiceText: 'Even arms',             cooldownReps: 3 },
+  { id: 'wrist_placement',    severity: 'warning', text: 'Hands under your shoulders',                  voiceText: 'Hands under shoulders', cooldownReps: 4 },
+  { id: 'push_up_speed',      severity: 'warning', text: 'Slow down, stay controlled',                  voiceText: 'Slow down',             cooldownReps: 2 },
 ];
 
 export class PushUpEngine implements ExerciseFormEngine {
@@ -91,9 +93,19 @@ export class PushUpEngine implements ExerciseFormEngine {
         const hipMid = midpoint(wLeftHip, wRightHip);
         const ankleMid = midpoint(wLeftAnkle, wRightAnkle);
         const bodyAngle = angleDeg(shoulderMid, hipMid, ankleMid);
-        if (bodyAngle < 160) {
-          issues.push({ id: 'body_alignment', severity: 'warning', message: 'Keep body straight', affectedLandmarks: [23, 24] });
+        if (bodyAngle < 155) {
+          if (hipMid.y < shoulderMid.y - 0.04) {
+            issues.push({ id: 'pushup_hips_sag', severity: 'error', message: 'Raise your hips', affectedLandmarks: [23, 24] });
+          } else if (hipMid.y > shoulderMid.y + 0.04) {
+            issues.push({ id: 'pushup_hips_pike', severity: 'warning', message: 'Lower your hips', affectedLandmarks: [23, 24] });
+          }
         }
+      }
+
+      // Elbow flare: elbow x more than 14cm wider than shoulder
+      const wLElbow = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_ELBOW);
+      if (wLElbow && wLeftShoulder && Math.abs(wLElbow.x - wLeftShoulder.x) > 0.14) {
+        issues.push({ id: 'pushup_elbow_flare', severity: 'warning', message: 'Tuck elbows closer to your body', affectedLandmarks: [13] });
       }
 
       // 3. Arm symmetry: left and right elbow angles should match

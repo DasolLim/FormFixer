@@ -57,11 +57,13 @@ export const DEFAULT_SQUAT_ENGINE_CONFIG: SquatEngineConfig = {
 };
 
 const SQUAT_CUE_DEFS: CueDef[] = [
-  { id: 'squat_depth',      severity: 'error',   text: 'Go lower — hit parallel',       voiceText: 'Go lower',     cooldownReps: 1 },
-  { id: 'squat_torso_lean', severity: 'warning',  text: 'Chest up, stay tall',            voiceText: 'Chest up',     cooldownReps: 3 },
-  { id: 'squat_knee_cave',  severity: 'warning',  text: 'Push knees out over toes',       voiceText: 'Knees out',    cooldownReps: 2 },
-  { id: 'squat_heel_lift',  severity: 'warning',  text: 'Keep heels flat on the ground',  voiceText: 'Heels down',   cooldownReps: 3 },
-  { id: 'squat_tempo',      severity: 'warning',  text: 'Slow down, stay controlled',     voiceText: 'Slow down',    cooldownReps: 2 },
+  { id: 'squat_depth',        severity: 'error',   text: 'Go lower — hit parallel',                    voiceText: 'Go lower',           cooldownReps: 1 },
+  { id: 'squat_butt_wink',    severity: 'error',   text: "Don't tuck your pelvis at the bottom",       voiceText: 'Keep pelvis neutral', cooldownReps: 1 },
+  { id: 'squat_torso_lean',   severity: 'warning', text: 'Chest up, stay tall',                        voiceText: 'Chest up',           cooldownReps: 3 },
+  { id: 'squat_knee_cave',    severity: 'warning', text: 'Push knees out over toes',                   voiceText: 'Knees out',          cooldownReps: 2 },
+  { id: 'squat_knee_forward', severity: 'warning', text: 'Sit back — drive your hips back',            voiceText: 'Hips back',          cooldownReps: 2 },
+  { id: 'squat_heel_lift',    severity: 'warning', text: 'Keep heels flat on the ground',              voiceText: 'Heels down',         cooldownReps: 3 },
+  { id: 'squat_tempo',        severity: 'warning', text: 'Slow down, stay controlled',                 voiceText: 'Slow down',          cooldownReps: 2 },
 ];
 
 function weightedAverage(left: number, right: number, leftWeight: number, rightWeight: number) {
@@ -78,6 +80,8 @@ export class SquatEngine implements ExerciseFormEngine {
   private repScorer: RepScorer;
   private repScoresAcc: RepScore[] = [];
   private prevPhase: EnginePhase = 'NOT_READY';
+  private prevTorsoLean = 0;
+  private buttWinkFrames = 0;
 
   constructor(private config: SquatEngineConfig = DEFAULT_SQUAT_ENGINE_CONFIG) {
     this.counter = new SquatRepCounterStateMachine(config.rep);
@@ -93,6 +97,8 @@ export class SquatEngine implements ExerciseFormEngine {
     this.repScorer.reset();
     this.repScoresAcc = [];
     this.prevPhase = 'NOT_READY';
+    this.prevTorsoLean = 0;
+    this.buttWinkFrames = 0;
   }
 
   update(frame: NormalizedPoseFrame, calibration: CalibrationStatus): EngineOutput {
@@ -180,6 +186,26 @@ export class SquatEngine implements ExerciseFormEngine {
     }
     if (tempoResult?.tooFast) {
       issues.push({ id: 'squat_tempo', severity: 'warning', message: 'Slow down and stay controlled' });
+    }
+
+    // Butt wink: rapid pelvis tuck during descent (torso lean increasing fast)
+    const leanDelta = torsoLean - this.prevTorsoLean;
+    if ((next.phase === 'DESCENDING' || next.phase === 'BOTTOM') && leanDelta > 8) {
+      this.buttWinkFrames++;
+    } else {
+      this.buttWinkFrames = 0;
+    }
+    this.prevTorsoLean = torsoLean;
+    if (this.buttWinkFrames >= 3) {
+      issues.push({ id: 'squat_butt_wink', severity: 'error', message: "Don't tuck your pelvis at the bottom" });
+    }
+
+    // Forward knee travel: knee z ahead of ankle z at bottom
+    if (next.phase === 'BOTTOM' && worldLeftKnee && worldLeftAnkle && worldRightKnee && worldRightAnkle) {
+      const avgKneeFwd = ((worldLeftKnee.z ?? 0) - (worldLeftAnkle.z ?? 0) + (worldRightKnee.z ?? 0) - (worldRightAnkle.z ?? 0)) / 2;
+      if (avgKneeFwd > 0.05) {
+        issues.push({ id: 'squat_knee_forward', severity: 'warning', message: 'Sit back — drive your hips back' });
+      }
     }
 
     // Record every frame once a rep is in progress (startRep was called).

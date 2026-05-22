@@ -7,6 +7,7 @@ import type { CueDef } from '@/features/form-engine/feedback-prioritizer';
 
 const CUE_DEFS: CueDef[] = [
   { id: 'raise_elbow_height', severity: 'warning', text: 'Raise your elbows to shoulder height', voiceText: 'Elbows higher', cooldownReps: 2 },
+  { id: 'raise_elbow_leads',  severity: 'warning', text: 'Lead with your elbows, not your wrists', voiceText: 'Elbows lead', cooldownReps: 2 },
   { id: 'raise_body_sway',    severity: 'warning', text: 'Keep your body still',                 voiceText: 'Stay still',    cooldownReps: 3 },
   { id: 'raise_imbalance',    severity: 'warning', text: 'Raise both arms evenly',               voiceText: 'Even arms',     cooldownReps: 3 },
 ];
@@ -62,6 +63,14 @@ export class LateralRaiseEngine extends GenericExerciseEngine {
       if (atPeak && rElbow && rShoulder) {
         if (rShoulder.y - rElbow.y > 0.05) {
           formIssues.push({ id: 'raise_elbow_height', severity: 'warning', message: 'Raise elbows to shoulder height' });
+        }
+      }
+
+      // 1b. Elbow leads wrist: at peak, wrist should not be above elbow
+      if (atPeak && lElbow) {
+        const lWrist = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_WRIST);
+        if (lWrist && lWrist.y > lElbow.y + 0.03) {
+          formIssues.push({ id: 'raise_elbow_leads', severity: 'warning', message: 'Lead with your elbows, not your wrists' });
         }
       }
 

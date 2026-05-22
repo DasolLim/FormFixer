@@ -14,7 +14,7 @@ const CUE_DEFS: CueDef[] = [
 
 export class SitUpEngine extends GenericExerciseEngine {
   private readonly prioritizer = new FeedbackPrioritizer(CUE_DEFS);
-  private maxEarShoulderDist = 0;
+  private baselineNeckRatio = 0;
   private anchorAnkleX = 0;
   private anchorAnkleY = 0;
   private anchorSet = false;
@@ -25,7 +25,7 @@ export class SitUpEngine extends GenericExerciseEngine {
   override reset(): void {
     super.reset();
     this.prioritizer.reset();
-    this.maxEarShoulderDist = 0;
+    this.baselineNeckRatio = 0;
     this.anchorSet = false;
     this.minAngleThisRep = 180;
   }
@@ -38,6 +38,7 @@ export class SitUpEngine extends GenericExerciseEngine {
     if (calibration.ready) {
       const lEar      = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_EAR);
       const lShoulder = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_SHOULDER);
+      const rShoulder = getWorldLandmark(frame, POSE_LANDMARKS.RIGHT_SHOULDER);
       const lAnkle    = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_ANKLE);
 
       // Set ankle anchor on first calibrated frame
@@ -47,11 +48,13 @@ export class SitUpEngine extends GenericExerciseEngine {
         this.anchorSet = true;
       }
 
-      // 1. Neck strain: ear pulling toward shoulder
+      // 1. Neck strain: scale-invariant ratio of ear-shoulder distance to shoulder width
       if (lEar && lShoulder) {
-        const dist = distance2d(lEar, lShoulder);
-        this.maxEarShoulderDist = Math.max(this.maxEarShoulderDist, dist);
-        if (this.maxEarShoulderDist > 0 && this.maxEarShoulderDist - dist > 0.12) {
+        const earShoulderDist = distance2d(lEar, lShoulder);
+        const shoulderWidth = lShoulder && rShoulder ? distance2d(lShoulder, rShoulder) : 0.2;
+        const neckRatio = earShoulderDist / Math.max(shoulderWidth, 0.2);
+        if (!this.baselineNeckRatio && neckRatio > 0) this.baselineNeckRatio = neckRatio;
+        if (this.baselineNeckRatio > 0 && (this.baselineNeckRatio - neckRatio) > 0.30) {
           formIssues.push({ id: 'situp_neck_strain', severity: 'warning', message: "Don't pull your neck" });
         }
       }

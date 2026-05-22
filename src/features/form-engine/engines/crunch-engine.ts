@@ -14,7 +14,7 @@ const CUE_DEFS: CueDef[] = [
 
 export class CrunchEngine extends GenericExerciseEngine {
   private readonly prioritizer = new FeedbackPrioritizer(CUE_DEFS);
-  private maxEarShoulderDist = 0;
+  private baselineNeckRatio = 0;
   private minAngleThisRep = 180;
 
   constructor() { super('crunch'); }
@@ -22,7 +22,7 @@ export class CrunchEngine extends GenericExerciseEngine {
   override reset(): void {
     super.reset();
     this.prioritizer.reset();
-    this.maxEarShoulderDist = 0;
+    this.baselineNeckRatio = 0;
     this.minAngleThisRep = 180;
   }
 
@@ -34,14 +34,17 @@ export class CrunchEngine extends GenericExerciseEngine {
     if (calibration.ready) {
       const lEar      = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_EAR);
       const lShoulder = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_SHOULDER);
+      const rShoulder = getWorldLandmark(frame, POSE_LANDMARKS.RIGHT_SHOULDER);
       const lHip      = getWorldLandmark(frame, POSE_LANDMARKS.LEFT_HIP);
       const rHip      = getWorldLandmark(frame, POSE_LANDMARKS.RIGHT_HIP);
 
-      // 1. Neck pull: ear approaching shoulder
+      // 1. Neck pull: scale-invariant ratio of ear-shoulder distance to shoulder width
       if (lEar && lShoulder) {
-        const dist = distance2d(lEar, lShoulder);
-        this.maxEarShoulderDist = Math.max(this.maxEarShoulderDist, dist);
-        if (this.maxEarShoulderDist > 0 && this.maxEarShoulderDist - dist > 0.10) {
+        const earShoulderDist = distance2d(lEar, lShoulder);
+        const shoulderWidth = lShoulder && rShoulder ? distance2d(lShoulder, rShoulder) : 0.2;
+        const neckRatio = earShoulderDist / Math.max(shoulderWidth, 0.2);
+        if (!this.baselineNeckRatio && neckRatio > 0) this.baselineNeckRatio = neckRatio;
+        if (this.baselineNeckRatio > 0 && (this.baselineNeckRatio - neckRatio) > 0.30) {
           formIssues.push({ id: 'crunch_neck_pull', severity: 'warning', message: "Don't pull your neck" });
         }
       }
