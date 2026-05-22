@@ -9,6 +9,12 @@
 .env
 .env.local
 .env.*.local
+.env.development
+.env.test
+.env.production
+
+# vercel
+.vercel
 
 .claude
 
@@ -21,3 +27,17 @@ yarn-error.log*
 .DS_Store
 *.pem
 tsconfig.tsbuildinfo
+
+requirements.txt
+
+ARCHITECTURE.md
+Camera.md
+FEATURES.md
+
+# database
+supabase
+
+next-env.d.ts
+package-lock.json
+tsconfig.json
+.eslintcache
