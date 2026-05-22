@@ -17,5 +17,17 @@ export default async function CalendarPage() {
 
   const unavailableDays = (profile?.unavailable_days as number[] | null) ?? [];
 
-  return <CalendarClient initialUnavailableDays={unavailableDays} />;
+  const { data: programRows } = await supabase
+    .from('programs')
+    .select('id, slug, title')
+    .eq('author_id', user.id)
+    .order('created_at', { ascending: false });
+
+  const programs = (programRows ?? []).map(p => ({
+    id: p.id as string,
+    slug: p.slug as string,
+    title: (p.title ?? p.slug) as string,
+  }));
+
+  return <CalendarClient initialUnavailableDays={unavailableDays} programs={programs} />;
 }
