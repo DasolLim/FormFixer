@@ -128,6 +128,8 @@ function CameraPageInner() {
   const [prResult, setPrResult] = useState<PRCheckResult | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [voiceRate] = useState(1.0);
+  const voiceEnabledRef = useRef(true);
+  voiceEnabledRef.current = voiceEnabled;
   const [showInfoCard, setShowInfoCard] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
@@ -501,7 +503,7 @@ function CameraPageInner() {
         setRightRepCount(output.rightRepCount);
         const cues = output.topCues ?? [];
         setTopCues(cues);
-        cues.forEach(c => speakCue(c.voiceText, voiceEnabled, { rate: voiceRate }));
+        cues.forEach(c => speakCue(c.voiceText, voiceEnabledRef.current, { rate: voiceRate }));
         rafRef.current = requestAnimationFrame(tick);
       } catch (detectError) {
         setError(detectError instanceof Error ? detectError.message : 'Pose detection failed.');

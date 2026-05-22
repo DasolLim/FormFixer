@@ -21,9 +21,9 @@ const GOAL_GUIDANCE: Record<string, string> = {
 };
 
 const FOCUS_GUIDANCE: Record<string, string> = {
-  lower:    'Lower body priority: emphasize squats, lunges, deadlifts, hip thrusts, leg press, calf raises, and glute work. Upper body movements are secondary/accessory only.',
-  upper:    'Upper body priority: emphasize chest press, rows, pull-ups, shoulder press, curls, and tricep work. Lower body movements are secondary/accessory only.',
-  fullbody: 'Full body balance: each session hits both upper and lower body. Alternate push/pull/legs patterns across days for maximum recovery.',
+  lower:    'Lower body priority: emphasize squat, sumo_squat, step_up, calf_raise, nordic_curl, knee_raise, leg_raise, and wall_sit. Upper body movements are secondary/accessory only.',
+  upper:    'Upper body priority: emphasize push_up, incline_db_press, pull_up, overhead_press, arnold_press, seated_cable_row, face_pull, bicep_curl, tricep_pushdown, and lateral_raise. Lower body movements are secondary/accessory only.',
+  fullbody: 'Full body balance: each session hits both upper and lower body. Mix compound lower (squat, sumo_squat, step_up) with upper push (push_up, incline_db_press, overhead_press) and upper pull (pull_up, seated_cable_row, face_pull). Alternate push/pull/legs patterns across days for maximum recovery.',
 };
 
 function buildUserMessage(

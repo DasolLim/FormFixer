@@ -14,17 +14,13 @@ import type { ProgramProgressRow } from '@/lib/programs/sessions';
 import FrequencyChart from '@/components/ui/FrequencyChart';
 import { ChevronRight, Flame, Trophy, Zap } from 'lucide-react';
 import type { ServerChallenge, ServerChallengeProgress } from './page';
+import { getExerciseConfig } from '@/features/form-engine/exercise-config';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function safeExerciseName(exerciseId: string | null | undefined, fallback: string): string {
   if (!exerciseId) return fallback.toUpperCase();
-  const names: Record<string, string> = {
-    squat: 'Squat', push_up: 'Push-Up', sit_up: 'Sit-Up', bicep_curl: 'Bicep Curl',
-    lateral_raise: 'Lateral Raise', overhead_press: 'Overhead Press',
-    leg_raise: 'Leg Raise', knee_raise: 'Knee Raise', crunch: 'Crunch', pull_up: 'Pull-Up',
-  };
-  return names[exerciseId] ?? exerciseId;
+  try { return getExerciseConfig(exerciseId).name; } catch { return exerciseId; }
 }
 
 function scoreColor(score: number): string {
