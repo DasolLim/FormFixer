@@ -12,9 +12,51 @@ import type { WorkoutEventRow } from '@/lib/calendar/sessions';
 import type { WeeklyFrequency } from '@/lib/workouts/frequency';
 import type { ProgramProgressRow } from '@/lib/programs/sessions';
 import FrequencyChart from '@/components/ui/FrequencyChart';
-import { ChevronRight, Flame, Trophy, Zap } from 'lucide-react';
+import { Bell, ChevronRight, Flame, Trophy, X, Zap } from 'lucide-react';
 import type { ServerChallenge, ServerChallengeProgress } from './page';
 import { getExerciseConfig } from '@/features/form-engine/exercise-config';
+
+const LOGIN_ALERTS_KEY = 'gymfxr_login_alerts';
+
+// ─── Login Alert Banner ───────────────────────────────────────────────────────
+
+function LoginAlertBanner() {
+  const [alerts, setAlerts] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOGIN_ALERTS_KEY);
+      if (raw) setAlerts(JSON.parse(raw) as string[]);
+    } catch { /* ignore */ }
+  }, []);
+
+  function dismiss(idx: number) {
+    const next = alerts.filter((_, i) => i !== idx);
+    setAlerts(next);
+    localStorage.setItem(LOGIN_ALERTS_KEY, JSON.stringify(next));
+  }
+
+  if (alerts.length === 0) return null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+      {alerts.map((msg, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 14px', borderRadius: 10, background: 'var(--accent-muted)', border: '1px solid var(--border-active)' }}>
+          <Bell size={15} style={{ color: 'var(--accent)', flexShrink: 0, marginTop: 1 }} />
+          <span style={{ flex: 1, fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.45 }}>{msg}</span>
+          <button
+            type="button"
+            onClick={() => dismiss(i)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: 'var(--text-muted)', flexShrink: 0 }}
+            aria-label="Dismiss"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -411,6 +453,8 @@ export function DashboardClient({
     <AuthGate>
       <div className="ui-section">
 
+        <LoginAlertBanner />
+
         {/* ── Stat Grid: streak | sessions | reps | program | calories ── */}
         <div className="stat-grid stat-grid-5">
 
@@ -443,11 +487,11 @@ export function DashboardClient({
           </div>
 
           <div className="stat-card">
-            <span className="stat-card-value" style={{ fontSize: activeProgram ? 16 : 28 }}>
+            <span className="stat-card-value">
               {activeProgram ? `${activeProgram.completion_percent}%` : '—'}
             </span>
-            <span className="stat-card-label">
-              {activeProgram ? activeProgram.program_slug : 'No program'}
+            <span className="stat-card-label" style={{ fontSize: 11, lineHeight: 1.3, textAlign: 'center', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {activeProgram ? (activeProgram.programTitle ?? activeProgram.program_slug.replace(/^ai-[a-f0-9]+-\d+$/, 'AI Program')) : 'No program'}
             </span>
           </div>
 
@@ -463,7 +507,7 @@ export function DashboardClient({
         {error && <p style={{ color: 'var(--danger)', fontSize: 14 }}>{error}</p>}
 
         {/* ── Today's Schedule ── */}
-        <TodayCard event={todayEvent} />
+        <TodayCard event={todayEvent} activeProgram={activeProgram} />
 
         {/* ── Weekly Challenge ── */}
         {challenge && challengeProgress && (
