@@ -28,8 +28,9 @@ export class GenericExerciseEngine implements ExerciseFormEngine {
     this.id = exerciseId;
     this.config = getExerciseConfig(exerciseId);
     this.stateMachine = new RepCounterStateMachine(this.config);
-    this.leftSmoother = new AngleSmoother();
-    this.rightSmoother = new AngleSmoother();
+    const windowSize = Math.max(2, Math.round((this.config.smoothingAlpha ?? 0.35) * 14.3));
+    this.leftSmoother = new AngleSmoother(windowSize);
+    this.rightSmoother = new AngleSmoother(windowSize);
     this.scorer = new RepScorer(this.config);
   }
 

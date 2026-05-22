@@ -32,6 +32,7 @@ export interface ExerciseConfig {
   calibrationMode?: 'standing' | 'prone' | 'hanging';
   calibrationLandmarks?: number[];
   minVisibilityOverrides?: Record<string, number>;
+  smoothingAlpha?: number;
 }
 
 export interface ExercisesConfig {

@@ -128,6 +128,8 @@ export function aggregateSetResults(
     symmetry: s.formScore,
     form: s.formScore,
     tempo: s.formScore,
+    ascent: 100,
+    ascentMs: 0,
     issueIds: [],
     timestampMs: Date.now(),
   }));

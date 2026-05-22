@@ -12,6 +12,7 @@ interface RepData {
   warningFrames: number;
   issueIds: Set<string>;
   descentMs: number;
+  ascentStartMs: number;
   completedAt: number;
 }
 
@@ -21,6 +22,7 @@ export class RepScorer {
   private _descentStart = 0;
   private lastFrameErrorCount = 0;
   private lastFrameWarningCount = 0;
+  private prevPhase = '';
 
   constructor(private config: ExerciseConfig) {}
 
@@ -34,11 +36,13 @@ export class RepScorer {
       warningFrames: 0,
       issueIds: new Set(),
       descentMs: 0,
+      ascentStartMs: 0,
       completedAt: 0,
     };
     this._descentStart = timestampMs;
     this.lastFrameErrorCount = 0;
     this.lastFrameWarningCount = 0;
+    this.prevPhase = '';
   }
 
   recordFrame(
@@ -73,6 +77,12 @@ export class RepScorer {
     if (phase === 'BOTTOM' && this.currentRepData.descentMs === 0) {
       this.currentRepData.descentMs = timestampMs - this._descentStart;
     }
+
+    // Detect BOTTOM → non-BOTTOM transition to mark ascent start
+    if (this.prevPhase === 'BOTTOM' && phase !== 'BOTTOM' && this.currentRepData.ascentStartMs === 0) {
+      this.currentRepData.ascentStartMs = timestampMs;
+    }
+    this.prevPhase = phase;
   }
 
   patchLastFrameIssues(issues: FormIssue[]): void {
@@ -102,6 +112,7 @@ export class RepScorer {
     this.currentRepData = null;
     this.lastFrameErrorCount = 0;
     this.lastFrameWarningCount = 0;
+    this.prevPhase = '';
     return this._scoreRep(data);
   }
 
@@ -128,7 +139,19 @@ export class RepScorer {
       tempo = Math.max(0, 100 - (d - 3500) / 50);
     }
 
-    const overall = depth * 0.30 + symmetry * 0.25 + form * 0.35 + tempo * 0.10;
+    const ascentMs = data.ascentStartMs > 0 ? data.completedAt - data.ascentStartMs : 0;
+    let ascent: number;
+    if (ascentMs === 0) {
+      ascent = 100;
+    } else if (ascentMs <= 500) {
+      ascent = 85;
+    } else if (ascentMs <= 2000) {
+      ascent = 100;
+    } else {
+      ascent = Math.max(0, 100 - (ascentMs - 2000) / 30);
+    }
+
+    const overall = depth * 0.28 + symmetry * 0.22 + form * 0.32 + tempo * 0.10 + ascent * 0.08;
 
     return {
       repNumber: data.repNumber,
@@ -137,6 +160,8 @@ export class RepScorer {
       symmetry: Math.round(symmetry),
       form: Math.round(form),
       tempo: Math.round(tempo),
+      ascent: Math.round(ascent),
+      ascentMs,
       issueIds: [...data.issueIds],
       timestampMs: data.completedAt,
     };
@@ -148,5 +173,6 @@ export class RepScorer {
     this._descentStart = 0;
     this.lastFrameErrorCount = 0;
     this.lastFrameWarningCount = 0;
+    this.prevPhase = '';
   }
 }
