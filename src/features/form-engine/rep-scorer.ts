@@ -162,18 +162,29 @@ export class RepScorer {
     const shortfall = Math.max(0, data.minAngle - depthTarget);
     const depth = scoreDepth(shortfall);
 
-    const symmetry = Math.max(0, Math.min(100, 100 - data.maxSymmetryDiff * 3));
+    // Side-facing exercises: one side is occluded → angle defaults to 180° → diff is
+    // meaningless. Unilateral: sides are intentionally different. Skip symmetry for both.
+    let symmetry: number;
+    if (this.config.isUnilateral || this.config.cameraAngle === 'side') {
+      symmetry = 100;
+    } else {
+      symmetry = Math.max(0, Math.min(100, 100 - data.maxSymmetryDiff * 2));
+    }
 
     const form = scoreForm(data.errorFrames, data.warningFrames, data.totalFrames);
 
+    // Tempo: perfect at 800ms–3500ms. Below 400ms = flash reps (penalise to 50-60).
+    // 400–800ms ramps from 60→100 so natural controlled reps (~700ms) score ~90.
     const d = data.descentMs;
     let tempo: number;
     if (d === 0) {
       tempo = 100;
-    } else if (d >= 1000 && d <= 3500) {
+    } else if (d >= 800 && d <= 3500) {
       tempo = 100;
-    } else if (d < 1000) {
-      tempo = Math.min(100, d / 10);
+    } else if (d < 400) {
+      tempo = Math.max(0, (d / 400) * 60);
+    } else if (d < 800) {
+      tempo = 60 + ((d - 400) / 400) * 40;
     } else {
       tempo = Math.max(0, 100 - (d - 3500) / 50);
     }
