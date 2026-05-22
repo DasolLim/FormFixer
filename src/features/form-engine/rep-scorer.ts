@@ -1,8 +1,8 @@
 import type { FormIssue } from '@/features/form-engine/form-engine';
 import type { ExerciseConfig } from '@/features/form-engine/exercise-config';
-import type { RepScore } from '@/features/form-engine/scoring-types';
+import type { RepScore, SessionSummary } from '@/features/form-engine/scoring-types';
 
-export type { RepScore };
+export type { RepScore, SessionSummary };
 
 interface RepData {
   repNumber: number;
@@ -10,11 +10,46 @@ interface RepData {
   maxSymmetryDiff: number;
   errorFrames: number;
   warningFrames: number;
+  totalFrames: number;
   issueIds: Set<string>;
   descentMs: number;
   ascentStartMs: number;
   completedAt: number;
 }
+
+function scoreDepth(shortfall: number): number {
+  if (shortfall === 0)  return 100;
+  if (shortfall <= 5)   return 97;
+  if (shortfall <= 10)  return 90;
+  if (shortfall <= 20)  return 75;
+  if (shortfall <= 35)  return 55;
+  return Math.max(0, 55 - (shortfall - 35) * 1.5);
+}
+
+function scoreForm(errorFrames: number, warningFrames: number, totalFrames: number): number {
+  if (totalFrames === 0) return 100;
+  const errorRatio   = errorFrames   / totalFrames;
+  const warningRatio = warningFrames / totalFrames;
+  const deduction = (errorRatio * 60) + (warningRatio * 25);
+  return Math.max(0, Math.round(100 - deduction));
+}
+
+function getGrade(score: number): { grade: string; label: string } {
+  if (score >= 95) return { grade: 'A+', label: 'Perfect' };
+  if (score >= 88) return { grade: 'A',  label: 'Excellent' };
+  if (score >= 80) return { grade: 'B+', label: 'Great' };
+  if (score >= 72) return { grade: 'B',  label: 'Good' };
+  if (score >= 62) return { grade: 'C+', label: 'Fair' };
+  if (score >= 50) return { grade: 'C',  label: 'Needs work' };
+  return             { grade: 'D',  label: 'Significant issues' };
+}
+
+const IMPROVEMENT_TIPS: Record<string, string> = {
+  depth:    'Focus on hitting full range of motion — go a little deeper each rep.',
+  symmetry: 'Your left and right sides are uneven. Slow down and feel both sides working equally.',
+  form:     'Prioritize quality over speed — reduce weight if needed to maintain good technique.',
+  tempo:    'Control the eccentric (lowering) phase — aim for 2-3 seconds on the way down.',
+};
 
 export class RepScorer {
   private currentRepData: RepData | null = null;
@@ -23,6 +58,7 @@ export class RepScorer {
   private lastFrameErrorCount = 0;
   private lastFrameWarningCount = 0;
   private prevPhase = '';
+  private completedScores: RepScore[] = [];
 
   constructor(private config: ExerciseConfig) {}
 
@@ -34,6 +70,7 @@ export class RepScorer {
       maxSymmetryDiff: 0,
       errorFrames: 0,
       warningFrames: 0,
+      totalFrames: 0,
       issueIds: new Set(),
       descentMs: 0,
       ascentStartMs: 0,
@@ -54,6 +91,7 @@ export class RepScorer {
     timestampMs: number
   ): void {
     if (!this.currentRepData) return;
+    this.currentRepData.totalFrames++;
     this.currentRepData.minAngle = Math.min(this.currentRepData.minAngle, primaryAngle);
     const diff = Math.abs(leftAngle - rightAngle);
     this.currentRepData.maxSymmetryDiff = Math.max(this.currentRepData.maxSymmetryDiff, diff);
@@ -78,7 +116,6 @@ export class RepScorer {
       this.currentRepData.descentMs = timestampMs - this._descentStart;
     }
 
-    // Detect BOTTOM → non-BOTTOM transition to mark ascent start
     if (this.prevPhase === 'BOTTOM' && phase !== 'BOTTOM' && this.currentRepData.ascentStartMs === 0) {
       this.currentRepData.ascentStartMs = timestampMs;
     }
@@ -113,7 +150,9 @@ export class RepScorer {
     this.lastFrameErrorCount = 0;
     this.lastFrameWarningCount = 0;
     this.prevPhase = '';
-    return this._scoreRep(data);
+    const score = this._scoreRep(data);
+    this.completedScores.push(score);
+    return score;
   }
 
   private _scoreRep(data: RepData): RepScore {
@@ -121,11 +160,11 @@ export class RepScorer {
 
     const depthTarget = reversedDirection ? upAngle : downAngle;
     const shortfall = Math.max(0, data.minAngle - depthTarget);
-    const depth = Math.max(0, Math.min(100, 100 - shortfall * 2));
+    const depth = scoreDepth(shortfall);
 
     const symmetry = Math.max(0, Math.min(100, 100 - data.maxSymmetryDiff * 3));
 
-    const form = Math.max(0, Math.min(100, 100 - data.errorFrames * 15 - data.warningFrames * 5));
+    const form = scoreForm(data.errorFrames, data.warningFrames, data.totalFrames);
 
     const d = data.descentMs;
     let tempo: number;
@@ -152,18 +191,92 @@ export class RepScorer {
     }
 
     const overall = depth * 0.28 + symmetry * 0.22 + form * 0.32 + tempo * 0.10 + ascent * 0.08;
+    const overallRounded = Math.round(overall);
+    const { grade, label } = getGrade(overallRounded);
 
     return {
       repNumber: data.repNumber,
-      overall: Math.round(overall),
+      overall: overallRounded,
       depth: Math.round(depth),
       symmetry: Math.round(symmetry),
       form: Math.round(form),
       tempo: Math.round(tempo),
       ascent: Math.round(ascent),
       ascentMs,
+      grade,
+      label,
       issueIds: [...data.issueIds],
       timestampMs: data.completedAt,
+    };
+  }
+
+  getSessionSummary(): SessionSummary {
+    const scores = this.completedScores;
+    const n = scores.length;
+    if (n === 0) {
+      return {
+        totalReps: 0,
+        averageOverall: 0,
+        averageDepth: 0,
+        averageForm: 0,
+        averageSymmetry: 0,
+        averageTempo: 0,
+        fatigueDetected: false,
+        trendDirection: 'stable',
+        topIssueIds: [],
+        improvementTip: IMPROVEMENT_TIPS.form,
+      };
+    }
+
+    const avg = (key: keyof RepScore) =>
+      Math.round(scores.reduce((s, r) => s + (r[key] as number), 0) / n);
+
+    const averageOverall   = avg('overall');
+    const averageDepth     = avg('depth');
+    const averageForm      = avg('form');
+    const averageSymmetry  = avg('symmetry');
+    const averageTempo     = avg('tempo');
+
+    let fatigueDetected = false;
+    if (n >= 6) {
+      const first3 = scores.slice(0, 3).reduce((s, r) => s + r.overall, 0) / 3;
+      const last3  = scores.slice(-3).reduce((s, r) => s + r.overall, 0) / 3;
+      fatigueDetected = last3 < first3 - 12;
+    }
+
+    let trendDirection: SessionSummary['trendDirection'] = 'stable';
+    if (n >= 2) {
+      const half = Math.floor(n / 2);
+      const firstHalf = scores.slice(0, half).reduce((s, r) => s + r.overall, 0) / half;
+      const secondHalf = scores.slice(half).reduce((s, r) => s + r.overall, 0) / (n - half);
+      const diff = secondHalf - firstHalf;
+      if (diff > 3) trendDirection = 'improving';
+      else if (diff < -3) trendDirection = 'declining';
+    }
+
+    const issueCounts = new Map<string, number>();
+    scores.forEach(r => r.issueIds.forEach(id => issueCounts.set(id, (issueCounts.get(id) ?? 0) + 1)));
+    const topIssueIds = [...issueCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([id]) => id);
+
+    const dims = { depth: averageDepth, symmetry: averageSymmetry, form: averageForm, tempo: averageTempo };
+    const worstDim = (Object.entries(dims) as [string, number][])
+      .reduce((a, b) => b[1] < a[1] ? b : a)[0];
+    const improvementTip = IMPROVEMENT_TIPS[worstDim] ?? IMPROVEMENT_TIPS.form;
+
+    return {
+      totalReps: n,
+      averageOverall,
+      averageDepth,
+      averageForm,
+      averageSymmetry,
+      averageTempo,
+      fatigueDetected,
+      trendDirection,
+      topIssueIds,
+      improvementTip,
     };
   }
 
@@ -174,5 +287,6 @@ export class RepScorer {
     this.lastFrameErrorCount = 0;
     this.lastFrameWarningCount = 0;
     this.prevPhase = '';
+    this.completedScores = [];
   }
 }

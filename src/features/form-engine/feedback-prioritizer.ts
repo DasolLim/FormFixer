@@ -8,6 +8,14 @@ export interface CueDef {
   cooldownReps: number;
 }
 
+const POSITIVE_CUES = [
+  { text: 'Perfect rep!',              voiceText: 'Perfect rep'          },
+  { text: 'Great form — keep it up!',  voiceText: 'Great form'           },
+  { text: 'Looking strong!',           voiceText: 'Looking strong'       },
+  { text: 'Excellent technique!',      voiceText: 'Excellent technique'  },
+  { text: "That's the one!",           voiceText: "That's the one"       },
+];
+
 const ISSUE_SEVERITY_RANK: Record<FormIssue['severity'], number> = {
   error: 1,
   warning: 2,
@@ -68,8 +76,9 @@ export class FeedbackPrioritizer {
       };
     });
 
-    if (cues.length === 0 && this.consecutiveCleanReps >= 3) {
-      cues.push({ text: 'Great form! Keep it up.', voiceText: 'Great form', severity: 'positive' });
+    if (cues.length === 0 && this.consecutiveCleanReps >= 2) {
+      const pick = POSITIVE_CUES[this.consecutiveCleanReps % POSITIVE_CUES.length];
+      cues.push({ text: pick.text, voiceText: pick.voiceText, severity: 'positive' });
     }
 
     return cues;

@@ -130,6 +130,8 @@ export function aggregateSetResults(
     tempo: s.formScore,
     ascent: 100,
     ascentMs: 0,
+    grade: 'B',
+    label: 'Good',
     issueIds: [],
     timestampMs: Date.now(),
   }));

@@ -1,5 +1,5 @@
 import type { NormalizedPoseFrame } from '@/features/pose/pose-types';
-import type { RepScore } from '@/features/form-engine/scoring-types';
+import type { RepScore, SessionSummary } from '@/features/form-engine/scoring-types';
 
 export type CameraOrientation = 'front' | 'left' | 'right';
 
@@ -58,6 +58,7 @@ export type EngineOutput = {
   calibrationStatus?: CalibrationStatus;
   confidence?: number;
   repScores?: RepScore[];
+  sessionSummary?: SessionSummary;
 };
 
 export interface ExerciseFormEngine {
