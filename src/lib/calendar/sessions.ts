@@ -35,3 +35,28 @@ export async function toggleWorkoutEventCompletion(eventId: string, nextValue: b
   const { error } = await supabase.from('workout_events').update({ is_completed: nextValue }).eq('id', eventId);
   return { error };
 }
+
+export async function deleteWorkoutEvent(eventId: string) {
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from('workout_events').delete().eq('id', eventId);
+  return { error };
+}
+
+export async function updateWorkoutEvent(eventId: string, payload: { title?: string; notes?: string; scheduled_date?: string }) {
+  const supabase = await getSupabaseClient();
+  const { error } = await supabase.from('workout_events').update(payload).eq('id', eventId);
+  return { error };
+}
+
+export async function addBulkWorkoutEvents(events: { userId: string; title: string; scheduledDate: string; notes?: string }[]) {
+  const supabase = await getSupabaseClient();
+  const rows = events.map(e => ({
+    user_id: e.userId,
+    title: e.title,
+    scheduled_date: e.scheduledDate,
+    notes: e.notes ?? null,
+    is_completed: false,
+  }));
+  const { error } = await supabase.from('workout_events').insert(rows);
+  return { error };
+}

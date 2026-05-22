@@ -38,7 +38,7 @@ function normalizeProfileRow(row: any): ProfileRow {
 
 
 async function fetchProfilesCompatByIds(supabase: any, ids: string[]) {
-  const rich = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode,following_count,follower_count').in('id', ids);
+  const rich = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode').in('id', ids);
   if (!rich.error) return { data: (rich.data ?? []).map(normalizeProfileRow), error: null };
 
   const standard = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode').in('id', ids);
@@ -56,14 +56,14 @@ async function ensureProfileRow(userId: string, email?: string | null) {
 
 export async function fetchMyProfile(userId: string, email?: string | null) {
   const supabase = await getSupabaseClient();
-  const primary = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode,following_count,follower_count').eq('id', userId).maybeSingle();
+  const primary = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode').eq('id', userId).maybeSingle();
 
   if (!primary.error && primary.data) return { data: normalizeProfileRow(primary.data), error: null };
 
   if (!primary.error && !primary.data) {
     const insertResult = await ensureProfileRow(userId, email);
     if (insertResult.error) return { data: null as ProfileRow | null, error: insertResult.error };
-    const reload = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode,following_count,follower_count').eq('id', userId).maybeSingle();
+    const reload = await supabase.from('profiles').select('id,email,username,is_private,privacy_mode').eq('id', userId).maybeSingle();
     return { data: reload.data ? normalizeProfileRow(reload.data) : null, error: reload.error };
   }
 
@@ -121,7 +121,7 @@ export async function fetchSuggestedProfiles(currentUserId: string, limit = 3) {
 
   const primary = await supabase
     .from('profiles')
-    .select('id,email,username,is_private,privacy_mode,following_count,follower_count,created_at')
+    .select('id,email,username,is_private,privacy_mode,created_at')
     .neq('id', currentUserId)
     .order('created_at', { ascending: false })
     .limit(limit * 3);
@@ -158,7 +158,7 @@ export async function searchProfilesByUsername(currentUserId: string, query: str
 
   const primary = await supabase
     .from('profiles')
-    .select('id,email,username,is_private,privacy_mode,following_count,follower_count')
+    .select('id,email,username,is_private,privacy_mode')
     .ilike('username', `%${normalized}%`)
     .neq('id', currentUserId)
     .limit(20);

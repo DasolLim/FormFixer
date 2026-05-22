@@ -40,12 +40,9 @@ export async function fetchDailyMealItems(userId: string, date: string) {
 
 export async function saveNutritionGoals(userId: string, goals: NutritionGoals) {
   const supabase = getSupabaseClient();
-  console.log('[saveNutritionGoals] userId:', userId, 'goals:', goals);
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('profiles')
     .update({ nutrition_goals: goals as unknown as import('@/lib/database.types').Json })
-    .eq('id', userId)
-    .select('id,nutrition_goals');
-  console.log('[saveNutritionGoals] data:', data, 'error:', error);
+    .eq('id', userId);
   return { error };
 }

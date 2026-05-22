@@ -9,6 +9,7 @@ export type ProgramProgressRow = {
   completion_percent: number;
   created_at: string;
   updated_at: string | null;
+  programTitle?: string | null;
 };
 
 export async function assignProgram(userId: string, programSlug: string, totalWorkouts: number) {

@@ -10,7 +10,6 @@ export async function fetchAllPrograms(): Promise<ProgramTemplate[]> {
     .order('created_at', { ascending: false })
 
   if (error) {
-    console.error('[fetchAllPrograms]', error)
     return []
   }
   return (data ?? []) as ProgramTemplate[]
