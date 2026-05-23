@@ -128,7 +128,7 @@ export default function GenerateProgramPage() {
         {/* Step 2 — Goal */}
         {step === 2 && (
           <>
-            <h1 className="onboarding-title">What's your goal?</h1>
+            <h1 className="onboarding-title">What&apos;s your goal?</h1>
             <p className="onboarding-subtitle">Your program will be structured around this outcome.</p>
             <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
               {GOAL_OPTIONS.map(opt => (
