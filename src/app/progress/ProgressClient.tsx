@@ -12,7 +12,8 @@ import {
   upsertWeightLog, fetchWeightLogs, fetchRecentWeightLogs, deleteWeightLog,
 } from '@/lib/progress/sessions';
 import type { JournalEntry, ProgressPhoto, WeightLog, WeightUnit, WeightDataPoint } from '@/lib/progress/types';
-import { Trash2, Upload, TrendingUp, BookOpen, Camera, Scale } from 'lucide-react';
+import { Trash2, Upload, TrendingUp, BookOpen, Camera, Scale, Flame } from 'lucide-react';
+import { CalorieBurnCard } from '@/app/nutrition/CalorieBurnCard';
 
 // ── Date helpers ──────────────────────────────────────────────────────────────
 
@@ -46,10 +47,11 @@ interface ProgressClientProps {
 // ── Section nav items ─────────────────────────────────────────────────────────
 
 const SECTIONS = [
-  { id: 'journal', label: 'Journal',  icon: BookOpen },
-  { id: 'photos',  label: 'Photos',   icon: Camera },
-  { id: 'graph',   label: 'Weight',   icon: TrendingUp },
-  { id: 'log',     label: 'Log',      icon: Scale },
+  { id: 'burn',    label: 'Calorie Burn', icon: Flame },
+  { id: 'journal', label: 'Journal',      icon: BookOpen },
+  { id: 'photos',  label: 'Photos',       icon: Camera },
+  { id: 'graph',   label: 'Weight',       icon: TrendingUp },
+  { id: 'log',     label: 'Log',          icon: Scale },
 ] as const;
 
 type SectionId = typeof SECTIONS[number]['id'];
@@ -74,7 +76,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function ProgressClient({ userId, defaultWeightUnit }: ProgressClientProps) {
-  const [activeSection, setActiveSection] = useState<SectionId>('journal');
+  const [activeSection, setActiveSection] = useState<SectionId>('burn');
 
   // ── Journal state ─────────────────────────────────────────────────────────
   const [journalContent,     setJournalContent]     = useState('');
@@ -328,6 +330,13 @@ export function ProgressClient({ userId, defaultWeightUnit }: ProgressClientProp
           );
         })}
       </div>
+
+      {/* ══ SECTION 0 — Calorie Burn ════════════════════════════════════════ */}
+      {activeSection === 'burn' && (
+        <div>
+          <CalorieBurnCard userId={userId} />
+        </div>
+      )}
 
       {/* ══ SECTION 1 — Journal ══════════════════════════════════════════════ */}
       {activeSection === 'journal' && (
