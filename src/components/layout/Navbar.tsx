@@ -6,13 +6,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import { getSupabaseClient } from '@/lib/supabaseClient';
 import { xpProgress, xpLevelColor, xpLevelGlow } from '@/lib/xp';
 import { useXPStore } from '@/store/xpStore';
-import { Home, Camera, Dumbbell, Apple } from 'lucide-react';
+import { Home, Camera, Dumbbell, Apple, TrendingUp } from 'lucide-react';
 
 const bottomNavItems = [
   { href: '/dashboard', label: 'Home',      icon: Home },
   { href: '/camera',    label: 'Camera',    icon: Camera },
   { href: '/programs',  label: 'Programs',  icon: Dumbbell },
   { href: '/nutrition', label: 'Nutrition', icon: Apple },
+  { href: '/progress',  label: 'Progress',  icon: TrendingUp },
 ] as const;
 
 const desktopNavItems = [
@@ -20,6 +21,7 @@ const desktopNavItems = [
   { href: '/camera',    label: 'Camera' },
   { href: '/programs',  label: 'Programs' },
   { href: '/nutrition', label: 'Nutrition' },
+  { href: '/progress',  label: 'Progress' },
   { href: '/calendar',  label: 'Calendar' },
 ] as const;
 

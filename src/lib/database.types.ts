@@ -274,7 +274,10 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activity_level: string | null
+          age: number | null
           best_form_score: number | null
+          biological_sex: string | null
           created_at: string
           current_streak: number | null
           current_weekly_streak: number | null
@@ -282,6 +285,8 @@ export type Database = {
           email: string | null
           email_digest: boolean | null
           equipment_profile: Json | null
+          height_cm: number | null
+          height_unit: string | null
           id: string
           is_private: boolean
           last_session_date: string | null
@@ -300,7 +305,10 @@ export type Database = {
           xp_level: number | null
         }
         Insert: {
+          activity_level?: string | null
+          age?: number | null
           best_form_score?: number | null
+          biological_sex?: string | null
           created_at?: string
           current_streak?: number | null
           current_weekly_streak?: number | null
@@ -308,6 +316,8 @@ export type Database = {
           email?: string | null
           email_digest?: boolean | null
           equipment_profile?: Json | null
+          height_cm?: number | null
+          height_unit?: string | null
           id: string
           is_private?: boolean
           last_session_date?: string | null
@@ -326,7 +336,10 @@ export type Database = {
           xp_level?: number | null
         }
         Update: {
+          activity_level?: string | null
+          age?: number | null
           best_form_score?: number | null
+          biological_sex?: string | null
           created_at?: string
           current_streak?: number | null
           current_weekly_streak?: number | null
@@ -334,6 +347,8 @@ export type Database = {
           email?: string | null
           email_digest?: boolean | null
           equipment_profile?: Json | null
+          height_cm?: number | null
+          height_unit?: string | null
           id?: string
           is_private?: boolean
           last_session_date?: string | null
@@ -676,6 +691,99 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      journal_entries: {
+        Row: {
+          id:                 string
+          user_id:            string
+          workout_session_id: string | null
+          entry_date:         string
+          content:            string
+          created_at:         string
+          updated_at:         string
+        }
+        Insert: {
+          id?:                string
+          user_id:            string
+          workout_session_id?: string | null
+          entry_date?:        string
+          content:            string
+          created_at?:        string
+          updated_at?:        string
+        }
+        Update: {
+          id?:                string
+          user_id?:           string
+          workout_session_id?: string | null
+          entry_date?:        string
+          content?:           string
+          created_at?:        string
+          updated_at?:        string
+        }
+        Relationships: []
+      }
+      progress_photos: {
+        Row: {
+          id:              string
+          user_id:         string
+          photo_date:      string
+          storage_path:    string
+          signed_url:      string | null
+          signed_url_exp:  string | null
+          week_number:     number | null
+          year:            number | null
+          notes:           string | null
+          created_at:      string
+        }
+        Insert: {
+          id?:             string
+          user_id:         string
+          photo_date:      string
+          storage_path:    string
+          signed_url?:     string | null
+          signed_url_exp?: string | null
+          week_number?:    number | null
+          year?:           number | null
+          notes?:          string | null
+          created_at?:     string
+        }
+        Update: {
+          id?:             string
+          user_id?:        string
+          photo_date?:     string
+          storage_path?:   string
+          signed_url?:     string | null
+          signed_url_exp?: string | null
+          week_number?:    number | null
+          year?:           number | null
+          notes?:          string | null
+          created_at?:     string
+        }
+        Relationships: []
+      }
+      weight_logs: {
+        Row: {
+          id:         string
+          user_id:    string
+          log_date:   string
+          weight_kg:  number
+          created_at: string
+        }
+        Insert: {
+          id?:        string
+          user_id:    string
+          log_date?:  string
+          weight_kg:  number
+          created_at?: string
+        }
+        Update: {
+          id?:        string
+          user_id?:   string
+          log_date?:  string
+          weight_kg?: number
+          created_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
