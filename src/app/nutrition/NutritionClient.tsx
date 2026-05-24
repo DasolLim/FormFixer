@@ -10,7 +10,6 @@ import { addMealItem, fetchDailyMealItems, saveNutritionGoals } from '@/lib/nutr
 import type { MacroInput, MealItemRow, MealType, NutritionGoals, UsdaSearchItem } from '@/lib/nutrition/types';
 import type { BodyMetricsUpdate } from '@/lib/nutrition';
 import { Search, Settings } from 'lucide-react';
-import { CalorieBurnCard } from './CalorieBurnCard';
 import { rlLimited, rlIncrement, rlRemaining, rlResetLabel } from '@/lib/rate-limit';
 
 const FOOD_SEARCH_KEY = 'food_search';
@@ -22,8 +21,8 @@ type LogTab = 'breakfast' | 'lunch' | 'dinner' | 'snack';
 const LOG_TABS: { key: LogTab; label: string }[] = [
   { key: 'breakfast', label: 'Breakfast' },
   { key: 'lunch',     label: 'Lunch' },
-  { key: 'snack',     label: 'Snack' },
   { key: 'dinner',    label: 'Dinner' },
+  { key: 'snack',     label: 'Snack' },
 ];
 
 // Portion scaling helper (CHANGE 7)
@@ -559,7 +558,6 @@ export function NutritionClient({ initialGoals }: NutritionClientProps) {
             </div>
           </Card>
 
-          <CalorieBurnCard userId={userId} />
 
         </div>
       </div>

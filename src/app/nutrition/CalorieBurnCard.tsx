@@ -14,17 +14,27 @@ type SpeedUnit = 'kmh' | 'mph';
 type StrengthIntensity = 'light' | 'moderate' | 'vigorous';
 
 const OTHER_MET_BY_TYPE: Record<string, number> = {
+  running:    9.8,
+  jogging:    7.0,
   cycling:    7.5,
-  rowing:     7.0,
+  hiking:     6.0,
   swimming:   7.0,
-  jump_rope:  11.0,
+  rowing:     7.0,
   elliptical: 5.0,
+  HIIT:       8.0,
+  boxing:     9.5,
+  jump_rope:  11.0,
+  basketball: 6.5,
+  soccer:     7.0,
+  dancing:    5.0,
+  yoga:       2.5,
+  pilates:    3.0,
 };
 
 const EXERCISE_TYPE_OPTIONS: { value: ExerciseType; label: string }[] = [
   { value: 'treadmill',   label: 'Treadmill' },
   { value: 'stairmaster', label: 'StairMaster' },
-  { value: 'strength',    label: 'Strength Training' },
+  { value: 'strength',    label: 'Lifting Weight' },
   { value: 'other',       label: 'Other Cardio' },
 ];
 
