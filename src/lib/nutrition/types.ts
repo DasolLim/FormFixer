@@ -28,7 +28,7 @@ export type UsdaSearchItem = {
 
 export type GoalType = 'lose_weight' | 'maintain' | 'build_muscle';
 
-export type ActivityLevel = 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active';
+export type ActivityLevel = 'sedentary' | 'lightly_active' | 'moderately_active' | 'very_active' | 'extremely_active';
 
 export type NutritionGoals = {
   goalType: GoalType;
@@ -45,6 +45,7 @@ const TDEE_MULTIPLIER: Record<ActivityLevel, number> = {
   lightly_active:     31, // 1-3 workouts/week
   moderately_active:  35, // 3-5 workouts/week
   very_active:        40, // 6-7 intense sessions/week
+  extremely_active:   46, // very hard exercise, physical job
 };
 
 // Protein g/kg targets — higher in deficit to protect lean mass
