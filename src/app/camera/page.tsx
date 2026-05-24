@@ -135,6 +135,7 @@ function CameraPageInner() {
   const voiceEnabledRef = useRef(true);
   voiceEnabledRef.current = voiceEnabled;
   const [showInfoCard, setShowInfoCard] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState('');
   const [timerElapsed, setTimerElapsed] = useState(0);
@@ -242,6 +243,7 @@ function CameraPageInner() {
 
   async function startCamera() {
     setError(null);
+    setIsCameraLoading(true);
     try {
       const pose = await loadPoseLandmarker();
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -263,6 +265,8 @@ function CameraPageInner() {
       runDetectionLoop(pose);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to start camera');
+    } finally {
+      setIsCameraLoading(false);
     }
   }
 
@@ -533,8 +537,8 @@ function CameraPageInner() {
         <div className="camera-col-left">
           <div className="camera-preview-wrap">
             <div className="camera-preview">
-              <video ref={videoRef} playsInline muted style={{ display: useCameraMode ? undefined : 'none' }} />
-              <canvas ref={canvasRef} style={{ display: useCameraMode ? undefined : 'none' }} />
+              <video ref={videoRef} playsInline muted style={{ display: useCameraMode && isCameraRunning ? undefined : 'none' }} />
+              <canvas ref={canvasRef} style={{ display: useCameraMode && isCameraRunning ? undefined : 'none' }} />
               {useCameraMode && !isCameraRunning && (
                 <div style={{
                   position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
@@ -553,9 +557,11 @@ function CameraPageInner() {
                     type="button"
                     className="btn btn-primary"
                     onClick={startCamera}
+                    disabled={isCameraLoading}
                     style={{ gap: 8, paddingLeft: 20, paddingRight: 20 }}
                   >
-                    <Camera size={16} strokeWidth={2} /> Turn on camera
+                    <Camera size={16} strokeWidth={2} />
+                    {isCameraLoading ? 'Starting…' : 'Turn on camera'}
                   </button>
                 </div>
               )}
@@ -760,8 +766,8 @@ function CameraPageInner() {
                 {planState.phase === 'idle' && (
                   <>
                     {useCameraMode ? (
-                      <button type="button" className="btn btn-primary btn-full" onClick={startCamera} style={{ marginBottom: 4 }}>
-                        <Play size={18} strokeWidth={2} /> Start Camera
+                      <button type="button" className="btn btn-primary btn-full" onClick={startCamera} disabled={isCameraLoading} style={{ marginBottom: 4 }}>
+                        <Play size={18} strokeWidth={2} /> {isCameraLoading ? 'Starting…' : 'Start Camera'}
                       </button>
                     ) : (
                       <button type="button" className="btn btn-primary btn-full" onClick={() => { dispatch({ type: 'START' }); }} style={{ marginBottom: 4 }}>
