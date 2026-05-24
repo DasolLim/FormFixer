@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation'
 import { useTransition, useOptimistic, useState } from 'react'
 import { getSupabaseClient } from '@/lib/supabaseClient'
-import type { ProgramTemplate, ProgramDay } from '@/lib/programs/types'
+import type { ProgramTemplate, StoredProgramDay as ProgramDay } from '@/lib/programs/types'
 import {
   ArrowLeft, Calendar, Dumbbell, Play, Clock, Target,
   ChevronDown, Zap, CheckCircle2,

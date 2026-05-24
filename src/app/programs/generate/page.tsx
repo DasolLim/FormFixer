@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import type { ProgramTemplate } from '@/lib/programs/types';
+import type { ProgramTemplate, WeeklyProgression } from '@/lib/programs/types';
 import { rlLimited, rlRemaining, rlIncrement, rlResetLabel } from '@/lib/rate-limit';
+import { ChevronDown, Zap } from 'lucide-react';
 
 const AI_GEN_KEY = 'ai_generate';
 const AI_GEN_MAX = 3;
@@ -41,6 +42,27 @@ const FOCUS_OPTIONS: { value: Focus; label: string; description: string }[] = [
 const WEEK_OPTIONS = [4, 8, 12];
 const TOTAL_STEPS  = 5;
 
+const PHASE_STYLE: Record<string, { bg: string; color: string; label: string }> = {
+  base:   { bg: 'rgba(107,114,128,0.18)', color: '#9ca3af', label: 'Base'   },
+  build:  { bg: 'rgba(59,130,246,0.18)',  color: '#60a5fa', label: 'Build'  },
+  peak:   { bg: 'rgba(245,158,11,0.18)',  color: '#fbbf24', label: 'Peak'   },
+  deload: { bg: 'rgba(34,197,94,0.18)',   color: '#4ade80', label: 'Deload' },
+};
+
+function PhaseBadge({ phase }: { phase: string }) {
+  const s = PHASE_STYLE[phase] ?? PHASE_STYLE.base;
+  return (
+    <span style={{
+      display: 'inline-block', fontSize: 10, fontWeight: 700,
+      padding: '1px 6px', borderRadius: 4,
+      background: s.bg, color: s.color,
+      alignSelf: 'center',
+    }}>
+      {s.label}
+    </span>
+  );
+}
+
 export default function GenerateProgramPage() {
   const router = useRouter();
   const [step, setStep]                     = useState(1);
@@ -51,10 +73,14 @@ export default function GenerateProgramPage() {
     daysPerWeek: 3,
     weeks: 8,
   });
-  const [generating, setGenerating]         = useState(false);
+  const [generating, setGenerating]             = useState(false);
   const [generatedProgram, setGeneratedProgram] = useState<ProgramTemplate | null>(null);
-  const [error, setError]                   = useState<string | null>(null);
-  const [remaining, setRemaining]           = useState(AI_GEN_MAX);
+  const [methodologyNotes, setMethodologyNotes] = useState<string | null>(null);
+  const [splitType, setSplitType]               = useState<string | null>(null);
+  const [volumeSummary, setVolumeSummary]       = useState<Record<string, number> | null>(null);
+  const [openProgressions, setOpenProgressions] = useState<Set<string>>(new Set());
+  const [error, setError]                       = useState<string | null>(null);
+  const [remaining, setRemaining]               = useState(AI_GEN_MAX);
 
   useEffect(() => { setRemaining(rlRemaining(AI_GEN_KEY, AI_GEN_MAX, 'day')); }, []);
 
@@ -71,13 +97,24 @@ export default function GenerateProgramPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(wizard),
       });
-      const json = await res.json() as { program?: ProgramTemplate; error?: string; details?: string };
+      const json = await res.json() as {
+        program?: ProgramTemplate;
+        methodology_notes?: string;
+        split_type?: string;
+        weekly_volume_summary?: Record<string, number>;
+        error?: string;
+        details?: string;
+      };
       if (!res.ok || json.error) {
         setError(json.error ?? 'Generation failed');
         setGenerating(false);
         return;
       }
       setGeneratedProgram(json.program ?? null);
+      setMethodologyNotes(json.methodology_notes ?? null);
+      setSplitType(json.split_type ?? null);
+      setVolumeSummary(json.weekly_volume_summary ?? null);
+      setOpenProgressions(new Set());
       const used = rlIncrement(AI_GEN_KEY, 'day');
       setRemaining(Math.max(0, AI_GEN_MAX - used));
       setStep(TOTAL_STEPS + 1);
@@ -247,38 +284,164 @@ export default function GenerateProgramPage() {
         {/* Result */}
         {step === TOTAL_STEPS + 1 && generatedProgram && (
           <>
-            <h1 className="onboarding-title">{generatedProgram.title}</h1>
-            <p className="onboarding-subtitle">{generatedProgram.description}</p>
+            {/* Header */}
+            <h1 className="onboarding-title" style={{ marginBottom: 4 }}>{generatedProgram.title}</h1>
+            {splitType && (
+              <span style={{
+                display: 'inline-block', fontSize: 11, fontWeight: 700, letterSpacing: '0.08em',
+                textTransform: 'uppercase', color: 'var(--accent)', marginBottom: 8,
+              }}>
+                {splitType}
+              </span>
+            )}
+            {methodologyNotes && (
+              <p style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 12px' }}>
+                {methodologyNotes}
+              </p>
+            )}
 
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', margin: '12px 0' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
               <span className="rest-chip">{generatedProgram.difficulty}</span>
               <span className="rest-chip">{generatedProgram.weeks} weeks</span>
               <span className="rest-chip">{generatedProgram.workout_days.length}x / week</span>
-              <span className="rest-chip">{generatedProgram.required_equipment.join(', ')}</span>
+              {generatedProgram.required_equipment.slice(0, 2).map(eq => (
+                <span key={eq} className="rest-chip">{eq.replace(/_/g, ' ')}</span>
+              ))}
             </div>
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12, marginTop: 4 }}>
-              {generatedProgram.workout_days.map(day => (
-                <div key={day.dayIndex} style={{ marginBottom: 12 }}>
-                  <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 4 }}>{day.label}</p>
-                  {day.exercises.map((ex, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, fontSize: '0.82rem', color: 'var(--muted)', paddingLeft: 8, marginBottom: 2 }}>
-                      <span>{ex.exercise_id}</span>
-                      <span>{ex.sets} x {ex.reps}</span>
-                      <span>{ex.rest_seconds}s rest</span>
+            {/* Weekly volume summary */}
+            {volumeSummary && Object.keys(volumeSummary).length > 0 && (
+              <div style={{
+                background: 'var(--bg-input)', borderRadius: 12, padding: '12px 14px', marginBottom: 16,
+              }}>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 10px' }}>
+                  Weekly Volume
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px 16px' }}>
+                  {Object.entries(volumeSummary).map(([muscle, sets]) => (
+                    <div key={muscle} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', textTransform: 'capitalize' }}>
+                        {muscle.replace(/_/g, ' ')}
+                      </span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                        {sets} sets
+                      </span>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* Days with exercise progressions */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              {generatedProgram.workout_days.map(day => (
+                <div key={day.dayIndex} style={{
+                  background: 'var(--bg-input)', borderRadius: 12, overflow: 'hidden',
+                }}>
+                  <p style={{
+                    fontSize: 13, fontWeight: 700, color: 'var(--text-primary)',
+                    padding: '10px 14px 8px', margin: 0,
+                    borderBottom: '1px solid var(--border)',
+                  }}>
+                    {day.label}
+                  </p>
+                  <div style={{ padding: '6px 0' }}>
+                    {day.exercises.map((ex, i) => {
+                      const key = `${day.dayIndex}-${i}`;
+                      const isOpen = openProgressions.has(key);
+                      const progression = ex.weekly_progression ?? [];
+                      return (
+                        <div key={key} style={{ borderBottom: i < day.exercises.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          {/* Exercise row */}
+                          <div style={{
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                            padding: '8px 14px', gap: 8,
+                          }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                  {ex.exercise_name ?? ex.exercise_id.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                                </span>
+                                {ex.fst7 && (
+                                  <span style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                                    fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                                    background: 'rgba(213,255,95,0.15)', color: 'var(--accent)',
+                                  }}>
+                                    <Zap size={9} />FST-7
+                                  </span>
+                                )}
+                              </div>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                {ex.sets} × {ex.reps} · {ex.rest_seconds}s rest
+                              </span>
+                            </div>
+                            {progression.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setOpenProgressions(prev => {
+                                  const next = new Set(prev);
+                                  next.has(key) ? next.delete(key) : next.add(key);
+                                  return next;
+                                })}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 4,
+                                  background: 'transparent', border: 'none', cursor: 'pointer',
+                                  color: 'var(--text-muted)', fontSize: 11, padding: '2px 4px',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                Progression
+                                <ChevronDown size={12} style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.15s' }} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Progression table */}
+                          {isOpen && progression.length > 0 && (
+                            <div style={{ padding: '0 14px 10px' }}>
+                              <div style={{ background: 'var(--bg-card)', borderRadius: 8, overflow: 'hidden' }}>
+                                {/* Table header */}
+                                <div style={{
+                                  display: 'grid', gridTemplateColumns: '40px 1fr 60px 1fr',
+                                  padding: '6px 10px', borderBottom: '1px solid var(--border)',
+                                }}>
+                                  {['Wk', 'Phase', 'Sets×Reps', 'Note'].map(h => (
+                                    <span key={h} style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>{h}</span>
+                                  ))}
+                                </div>
+                                {progression.map((pw: WeeklyProgression) => (
+                                  <div key={pw.week} style={{
+                                    display: 'grid', gridTemplateColumns: '40px 1fr 60px 1fr',
+                                    padding: '5px 10px', borderBottom: '1px solid var(--border)',
+                                    background: pw.phase === 'deload' ? 'rgba(34,197,94,0.06)' : 'transparent',
+                                  }}>
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{pw.week}</span>
+                                    <PhaseBadge phase={pw.phase} />
+                                    <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
+                                      {pw.sets}×{pw.reps}
+                                    </span>
+                                    <span style={{ fontSize: 10, color: 'var(--text-muted)', lineHeight: 1.4 }}>{pw.coaching_note}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               ))}
             </div>
 
-            <button type="button" className="btn btn-primary btn-full" style={{ marginTop: 16 }} onClick={() => router.push('/programs')}>
+            <button type="button" className="btn btn-primary btn-full" onClick={() => router.push('/programs')}>
               Start This Program
             </button>
             <button
               type="button"
-              style={{ marginTop: 8, width: '100%', background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: '0.82rem', cursor: 'pointer', padding: '6px 0' }}
-              onClick={() => { setStep(5); setGeneratedProgram(null); setError(null); }}
+              style={{ marginTop: 8, width: '100%', background: 'transparent', border: 'none', color: 'var(--text-muted)', fontSize: '0.82rem', cursor: 'pointer', padding: '6px 0' }}
+              onClick={() => { setStep(5); setGeneratedProgram(null); setError(null); setMethodologyNotes(null); setSplitType(null); setVolumeSummary(null); }}
             >
               Generate another
             </button>
