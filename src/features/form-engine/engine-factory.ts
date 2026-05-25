@@ -14,9 +14,6 @@ import { TricepPushdownEngine } from './engines/tricep-pushdown-engine';
 import { FacePullEngine } from './engines/face-pull-engine';
 import { ArnoldPressEngine } from './engines/arnold-press-engine';
 import { SeatedCableRowEngine } from './engines/seated-cable-row-engine';
-import { SumoSquatEngine } from './engines/sumo-squat-engine';
-import { WallSitEngine } from './engines/wall-sit-engine';
-import { StepUpEngine } from './engines/step-up-engine';
 import { CalfRaiseEngine } from './engines/calf-raise-engine';
 import { NordicCurlEngine } from './engines/nordic-curl-engine';
 import { getAllExerciseIds } from './exercise-config';
@@ -38,9 +35,6 @@ export function getEngine(exerciseId: string): ExerciseFormEngine {
     case 'face_pull':         return new FacePullEngine();
     case 'arnold_press':      return new ArnoldPressEngine();
     case 'seated_cable_row':  return new SeatedCableRowEngine();
-    case 'sumo_squat':        return new SumoSquatEngine();
-    case 'wall_sit':          return new WallSitEngine();
-    case 'step_up':           return new StepUpEngine();
     case 'calf_raise':        return new CalfRaiseEngine();
     case 'nordic_curl':       return new NordicCurlEngine();
     default:
@@ -68,9 +62,6 @@ export const EXERCISE_IDS = [
   'face_pull',
   'arnold_press',
   'seated_cable_row',
-  'sumo_squat',
-  'wall_sit',
-  'step_up',
   'calf_raise',
   'nordic_curl',
 ] as const;

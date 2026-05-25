@@ -20,9 +20,6 @@ const EXERCISE_VIDEOS: Record<string, string> = {
   face_pull:        'rep4bpAt_gs',
   arnold_press:     '6Z15_WdXmVw',
   seated_cable_row: 'GZbfZ033f74',
-  sumo_squat:       'VJFXV-oM_SQ',
-  wall_sit:         'y-wV4Venusw',
-  step_up:          'dQqApCGd5Ss',
   calf_raise:       'gwLzBv3i0S4',
   nordic_curl:      'F-ohrNO9MoU',
 };
