@@ -594,7 +594,7 @@ const closeBtn: React.CSSProperties = {
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', zIndex: 150, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '24px 24px 20px', maxWidth: 440, width: '100%', maxHeight: '90vh', overflowY: 'auto' }}>
+      <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, padding: '24px 24px 20px', maxWidth: 440, width: '100%', maxHeight: '90dvh', overflowY: 'auto' }}>
         {children}
       </div>
     </div>

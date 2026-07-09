@@ -2071,7 +2071,9 @@ button:active, a:active {
 
 /* ─── 33. AUTH PAGES ──────────────────────────────────────────────────────── */
 .auth-page {
-  min-height: 100dvh;
+  /* Fill .page-container's content box (100dvh minus its 68px/88px padding),
+     otherwise a full 100dvh child forces 156px of phantom scroll. */
+  min-height: calc(100dvh - 156px);
   display: grid;
   place-items: center;
   padding: 28px 20px;
@@ -2231,6 +2233,9 @@ button:active { transform: scale(0.97); }
     padding-left: 28px;
     padding-right: 28px;
   }
+
+  /* Keep the tab bar aligned with the widened content column */
+  .bottom-nav { max-width: 520px; }
 }
 
 /* Desktop: horizontal top navbar at 1024px+ */
@@ -2274,6 +2279,10 @@ button:active { transform: scale(0.97); }
   }
 
   .ui-section { gap: 24px; }
+
+  /* .page-container padding becomes 88px top / 60px bottom here */
+  .auth-page,
+  .onboarding-page { min-height: calc(100dvh - 148px); }
 
   .page-header {
     display: flex;
@@ -2682,6 +2691,7 @@ button:active { transform: scale(0.97); }
 
 .home-camera-stat-pill {
   flex: 1;
+  min-width: 0; /* allow shrink below min-content on narrow screens */
   background: var(--bg-input);
   border-radius: 10px;
   padding: 10px 12px;
@@ -2788,8 +2798,13 @@ button:active { transform: scale(0.97); }
 
 .home-features-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
+}
+
+/* Two cramped columns clip below ~360px — stack instead */
+@media (max-width: 359px) {
+  .home-features-grid { grid-template-columns: 1fr; }
 }
 
 .home-feature-card {
@@ -2917,7 +2932,7 @@ button:active { transform: scale(0.97); }
   color: var(--text-on-lime);
 }
 
-.home-program-info { flex: 1; }
+.home-program-info { flex: 1; min-width: 0; } /* let text wrap instead of widening the card */
 
 .home-program-name {
   font-size: 15px;
@@ -3034,7 +3049,7 @@ button:active { transform: scale(0.97); }
     grid-template-columns: repeat(4, 1fr);
   }
   .home-programs-grid {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -3059,7 +3074,7 @@ button:active { transform: scale(0.97); }
   }
 
   .home-features-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .home-steps-grid {
@@ -3074,7 +3089,7 @@ button:active { transform: scale(0.97); }
   }
 
   .home-programs-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .home-footer-inner {
@@ -3667,7 +3682,8 @@ button:active { transform: scale(0.97); }
 
 /* ─── Onboarding shared ──────────────────────────────────────────────────── */
 .onboarding-page {
-  min-height: 100vh;
+  /* See .auth-page — fill the padded container, don't overflow it. */
+  min-height: calc(100dvh - 156px);
   display: flex;
   align-items: center;
   justify-content: center;

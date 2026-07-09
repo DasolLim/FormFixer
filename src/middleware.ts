@@ -10,6 +10,9 @@ const PROTECTED_PREFIXES = [
   '/social',
   '/nutrition',
   '/achievements',
+  '/progress',
+  '/notifications',
+  '/workout',
 ];
 
 export async function middleware(request: NextRequest) {

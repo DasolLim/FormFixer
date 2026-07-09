@@ -214,7 +214,7 @@ export function NutritionGoalsModal({ goals, profile, onSave, onClose }: Nutriti
       <div
         className="modal-panel"
         onClick={e => e.stopPropagation()}
-        style={{ maxHeight: '88vh', overflowY: 'auto' }}
+        style={{ maxHeight: '88dvh', overflowY: 'auto' }}
       >
         <h3 className="modal-title">Nutrition Goals</h3>
 
