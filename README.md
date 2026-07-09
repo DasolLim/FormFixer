@@ -1,111 +1,96 @@
-# FormFixer (v4 Social Foundation)
+# GymFXR
 
-## v4 features
-- Unique usernames (`profiles.username`) with DB-level uniqueness and client-side validation
-- Account privacy mode (`public` / `private`) for friend behavior
-- Friend search by username
-- Friend relationships + pending request inbox
-- In-app notifications:
-  - friend request received
-  - friend request accepted
-  - custom gym invite
-- Manual workout calendar + v3 training/nutrition/program features
+Real-time AI fitness coaching in the browser. GymFXR uses on-device pose detection to analyze exercise form as you train, giving live rep counts, form scores, and voice/visual cues — no wearable or native app required.
 
-## Environment variables
-Create `.env` in project root:
+**Live:** [gymfixer.vercel.app](https://gymfixer.vercel.app)
+
+## Features
+
+- **Real-time form analysis** — MediaPipe pose detection runs entirely client-side over the webcam feed, tracking 33 body landmarks at up to 30fps
+- **21 supported exercises** — squat, push-up, pull-up, sit-up, bicep curl, overhead press, Nordic curl, and more, each with a dedicated scoring engine (`src/features/form-engine/engines`)
+- **Rep counting & form scoring** — a calibration gate, rep-phase state machine, and feedback prioritizer turn raw landmarks into a live rep count, joint angles, and a 0–100 form score per set
+- **Voice cues** — spoken feedback during a set via the Web Speech API
+- **Guided workout programs** — browse structured programs or generate one with AI (OpenRouter), then schedule it onto a calendar
+- **Nutrition tracking** — log meals by type and search the USDA FoodData Central database for macros
+- **Progress tracking** — weight graph, progress photos, and a training journal
+- **Social** — friends, gym invites, and an in-app notification center
+- **Gamification** — XP, levels, personal records, and streaks
+- **Installable PWA** — offline-capable app shell with a service worker and web manifest
+
+## Tech stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 14 (App Router), React 18, TypeScript |
+| Pose detection | MediaPipe Tasks Vision (client-side) |
+| Database & Auth | Supabase (Postgres, Auth, Row Level Security) |
+| AI generation | OpenRouter API (workout program & schedule generation) |
+| Nutrition data | USDA FoodData Central API |
+| Charts | Recharts |
+| 3D | Three.js (muscle-group avatar) |
+| State | Zustand |
+| Validation | Zod |
+| Styling | Global CSS with a custom design-token system (no CSS framework) |
+| Deployment | Vercel |
+
+## Getting started
+
+### Prerequisites
+
+- Node.js 18+
+- A [Supabase](https://supabase.com) project (Postgres + Auth enabled)
+- A [USDA FoodData Central](https://fdc.nal.usda.gov/api-key-signup.html) API key
+- An [OpenRouter](https://openrouter.ai) API key
+
+### Setup
+
+```bash
+git clone https://github.com/DasolLim/FormFixer.git
+cd FormFixer
+npm install
+```
+
+Create a `.env` file in the project root:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 USDA_API_KEY=your-usda-fooddata-central-key
+OPENROUTER_API_KEY=your-openrouter-key
+OPENROUTER_MODEL=anthropic/claude-3-5-sonnet
 ```
 
-## Setup
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Run SQL in Supabase SQL editor:
-   - `supabase/schema.sql`
-3. Start app:
-   ```bash
-   npm run dev
-   ```
+Provision your Supabase project with the schema this app expects — see `src/lib/database.types.ts` and the query functions under `src/lib/*/sessions.ts` for the tables each feature reads and writes.
 
-## v4 social routes
-- `/social` find friends, manage requests, send invite messages
-- `/notifications` in-app notification center
-- `/profile` username + privacy mode settings
-
-## Updated folder structure (v4 additions)
-```txt
-src/
-  app/
-    social/page.tsx
-    notifications/page.tsx
-    profile/page.tsx                # updated with username/privacy settings
-  components/
-    social/
-      FriendCard.tsx
-      FriendRequestCard.tsx
-      NotificationItem.tsx
-    layout/Navbar.tsx               # updated with social link + bell indicator
-  lib/
-    social/
-      sessions.ts
-      types.ts
-    supabaseClient.ts               # updated singleton init (promise cache)
-supabase/
-  schema.sql                        # updated with v4 social tables + policies
-```
-
-## Social flow behavior
-- Public profile target:
-  - `Add Friend` immediately creates accepted friendship (both directions)
-- Private profile target:
-  - `Request Friend` creates pending request
-  - target user can accept/decline from `/social`
-- “Notify Friend” sends a text gym invite to recipient notifications
-
-## VS Code terminal setup (Windows PowerShell)
-```powershell
-# 1) Clean previous install artifacts
-Remove-Item -Recurse -Force node_modules -ErrorAction SilentlyContinue
-Remove-Item -Force package-lock.json -ErrorAction SilentlyContinue
-Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue
-
-# 2) Install JavaScript dependencies
-npm install
-
-# 3) Install optional Python helper dependency
-py -m pip install -r requirements.txt
-
-# 4) Start app
+```bash
 npm run dev
 ```
 
-## Manual test steps (v4)
-1. Login and open `/profile`.
-2. Set a new username and choose privacy mode.
-3. Open `/social`, search another username.
-4. For a public user, click **Add Friend** and confirm they appear in friends list.
-5. For a private user, click **Request Friend**.
-6. Login as target user, open `/social`, accept/decline from pending inbox.
-7. From friends list, click **Notify Friend**, send message.
-8. Open `/notifications` as recipient and mark notification as read.
+Open [http://localhost:3000](http://localhost:3000).
 
-## Known limitations (post-v4 ideas)
-- No chat threads/history yet (invite is single notification message)
-- No push/email/SMS notifications (in-app only)
-- No blocking/reporting/mute controls yet
-- No pagination for very large friend/notification lists yet
+### Other scripts
 
+```bash
+npm run build       # production build
+npm run start       # serve the production build
+npm run lint        # lint
+npm run lint:fix    # lint, auto-fixing
+```
 
-## Dev auth behavior note
-- In development (`npm run dev`), app boot now clears persisted auth session once per full reload so you start logged out after restart/relaunch.
-- This is intentional to prevent stale auth state while debugging login/logout flows.
+## Project structure
 
+```
+src/
+├── app/            # Next.js App Router pages and API routes
+├── components/     # Shared UI components
+├── features/
+│   ├── pose/         # MediaPipe adapter, landmark normalization
+│   └── form-engine/  # Per-exercise scoring engines, rep counter, calibration
+├── lib/            # Supabase queries, domain logic, per-feature server actions
+├── store/          # Zustand stores
+└── styles/         # Global CSS design-token system
+```
 
-## Social schema migration note
-If you see errors like `column profiles.username does not exist`, your Supabase database is on an older schema.
-Run `supabase/schema.sql` again in Supabase SQL Editor (it is idempotent and safe to re-run).
+## License
+
+MIT — see [LICENSE](LICENSE).
