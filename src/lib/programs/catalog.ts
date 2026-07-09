@@ -12,7 +12,7 @@ export async function fetchAllPrograms(): Promise<ProgramTemplate[]> {
   if (error) {
     return []
   }
-  return (data ?? []) as ProgramTemplate[]
+  return (data ?? []) as unknown as ProgramTemplate[]
 }
 
 // Fetches public programs + the user's own AI-generated programs
@@ -34,7 +34,7 @@ export async function fetchAllProgramsForUser(userId: string): Promise<ProgramTe
     if (seen.has(p.id)) return false
     seen.add(p.id)
     return true
-  }) as ProgramTemplate[]
+  }) as unknown as ProgramTemplate[]
 }
 
 export async function fetchProgramBySlug(slug: string): Promise<ProgramTemplate | null> {
@@ -46,7 +46,7 @@ export async function fetchProgramBySlug(slug: string): Promise<ProgramTemplate 
     .single()
 
   if (error) return null
-  return data as ProgramTemplate
+  return data as unknown as ProgramTemplate
 }
 
 export async function fetchProgramsByEquipment(

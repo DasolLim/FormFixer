@@ -103,7 +103,7 @@ export async function POST(req: NextRequest) {
       .from('programs')
       .select('id,slug,title,difficulty,weeks,workout_days,required_equipment,description,author_id,is_public,is_ai_generated,created_at')
       .in('id', programIds);
-    programs = (programRows ?? []) as ProgramTemplate[];
+    programs = (programRows ?? []) as unknown as ProgramTemplate[];
   }
 
   if (programs.length === 0) {
